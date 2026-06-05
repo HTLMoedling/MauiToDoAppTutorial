@@ -311,11 +311,11 @@ builder.Services.AddSingleton<DatabaseService>();
 ```
 
 ## Integration in die UI (MainPage.xaml.cs)
-In der MainPage.xaml.cs laden wir die Daten nun aus der Datenbank statt aus einer statischen Liste:
+In der MainPage.xaml.cs laden wir die Daten nun aus der Datenbank statt aus einer statischen Liste.
+
+Füge die Services hinzu und injecte diese im Konstruktor
 
 ```csharp
-public partial class MainPage : ContentPage
-{
     // Die Liste, die sich automatisch in der UI aktualisiert
     private readonly DatabaseService _dbService;
     private readonly TaskService _taskService;
@@ -327,13 +327,12 @@ public partial class MainPage : ContentPage
         _taskService = taskService;
         TasksCollection.ItemsSource = _taskService.Tasks;
     }
+```
 
-    private async void OnAddClicked(object sender, EventArgs e)
-    {
-        // Wir navigieren zur AddTaskPage
-        await Shell.Current.GoToAsync(nameof(AddTaskPage));
-    }
+Füge die Methode OnAppearing hinzu.
+Diese Methode wird in dem Moment aufgerufen, in dem eine Seite auf dem Bildschirm erscheint oder für den Benutzer sichtbar wird.
 
+```csharp
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -343,7 +342,6 @@ public partial class MainPage : ContentPage
         foreach (var item in items)
             _taskService.Tasks.Add(item);
     }
-}
 ```
 
 ## Update AddTaskPage.xaml.cs
