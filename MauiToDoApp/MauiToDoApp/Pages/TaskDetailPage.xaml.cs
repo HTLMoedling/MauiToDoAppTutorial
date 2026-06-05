@@ -32,6 +32,10 @@ public partial class TaskDetailPage : ContentPage
         DescLabel.Text = string.IsNullOrWhiteSpace(SelectedTask.Description)
             ? "Keine Beschreibung vorhanden."
             : SelectedTask.Description;
+        StatusLabel.Text = SelectedTask.IsDone
+            ? "Status: Erledigt ✅"
+            : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy")}) ⏳";
+
     }
 
     private async void OnCloseClicked(object sender, EventArgs e)

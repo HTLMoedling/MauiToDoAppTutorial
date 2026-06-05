@@ -1,6 +1,7 @@
 ﻿using MauiToDoApp.Pages;
 using MauiToDoApp.Services;
 using Microsoft.Extensions.Logging;
+using Plugin.LocalNotification;
 
 namespace MauiToDoApp
 {
@@ -11,6 +12,7 @@ namespace MauiToDoApp
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseLocalNotification()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

@@ -18,12 +18,6 @@ namespace MauiToDoApp
             TasksCollection.ItemsSource = _taskService.Tasks;
         }
 
-        public MainPage(TaskService taskService)
-        {
-            InitializeComponent();
-            TasksCollection.ItemsSource = taskService.Tasks;
-        }
-
         private async void OnAddClicked(object sender, EventArgs e)
         {
             // Wir navigieren zur AddTaskPage

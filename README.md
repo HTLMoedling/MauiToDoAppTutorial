@@ -633,3 +633,175 @@ public partial class TaskDetailPage : ContentPage
     }
 }
 ```
+
+## Route registrieren (AppShell.xaml.cs)
+Da die Detailseite kein fester Tab ist, sondern dynamisch aufgerufen wird, müssen wir ihre Route im Konstruktor der AppShell.xaml.cs registrieren.
+
+```csharp
+Routing.RegisterRoute(nameof(TaskDetailPage), typeof(TaskDetailPage));
+```
+
+## Klick-Event auf der Hauptseite einbauen (MainPage.xaml)
+Wir müssen der CollectionView mitteilen, dass etwas passieren soll, wenn ein Schüler auf einen Eintrag tippt. Dazu nutzen wir das Attribut SelectionChanged und stellen den SelectionMode auf Single.
+Suche die <CollectionView> in der MainPage.xaml und passe sie an.
+
+```xml
+<CollectionView x:Name="TasksCollection" 
+                Grid.Row="0"
+                SelectionMode="Single"
+                SelectionChanged="OnTaskSelectionChanged">
+```
+
+## Die Navigation auslösen (MainPage.xaml.cs)
+Im Code-Behind der MainPage fangen wir das Auswahl-Event ab, extrahieren das angeklickte TodoItem und übergeben es in einem Dictionary als Navigationsparameter.
+Füge diese Methode in die MainPage.xaml.cs ein.
+
+```csharp
+private async void OnTaskSelectionChanged(object sender, SelectionChangedEventArgs e)
+{
+    // e.CurrentSelection enthält das ausgewählte Element (bzw. mehrere, falls erlaubt)
+    if (e.CurrentSelection.FirstOrDefault() is TodoItem clickedTask)
+    {
+        // 1. Parameter-Dictionary erstellen. Der Schlüssel ("Item") muss exakt 
+        // mit dem Namen im [QueryProperty]-Attribut der Detailseite übereinstimmen!
+        var navigationParameter = new Dictionary<string, object>
+        {
+            { "Item", clickedTask }
+        };
+
+        // 2. Navigieren und Parameter übergeben
+        await Shell.Current.GoToAsync(nameof(TaskDetailPage), navigationParameter);
+
+        // 3. WICHTIG: Die Auswahl in der UI sofort wieder aufheben, 
+        // damit das Event beim nächsten Klick auf dasselbe Item wieder feuert.
+        if (sender is CollectionView collectionView)
+        {
+            collectionView.SelectedItem = null;
+        }
+    }
+}
+```
+
+# Push Benachrichtigungen für die ToDos
+Durch Push-Notifications werden Nutzer durch eine Nachricht direkt am Gerät an ihre Aufgaben erinnern. Da MAUI keine eigene "Push-Engine" mitbringt, nutzt man dafür in der Regel lokale Benachrichtigungen (wenn die App auf dem Gerät läuft) oder Remote Push Notifications (über einen Server wie Firebase).
+Benachrichtigungen werden auch dann geschickt, wenn die App nicht geöffnet ist
+Wir nutzen dafür das bewährte und aktuelle NuGet-Paket Plugin.LocalNotification.
+
+## NuGet-Paket installieren
+Zuerst müssen wir das Paket zum Projekt hinzufügen: 
+
+```xml
+install-package Plugin.LocalNotification
+```
+
+## Android Manifest anpassen
+Manchmal verweigert Android den Dialog, wenn die Berechtigung nicht auch im "Manifest" angekündigt wurde.
+
+1.	Navigiere im Projektmappen-Explorer zu: Platforms -> Android -> AndroidManifest.xml.
+2.	Klicke mit der rechten Maustaste darauf und wähle "Code anzeigen".
+3.	Füge innerhalb des <manifest>-Tags (aber außerhalb des <application>-Tags) folgende Zeile hinzu.
+
+Die Datei kann auch direkt im Explorer geöffnet (Notepad++) und bearbeitet werden
+
+```xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+```
+
+## Paket in MauiProgram.cs initialisiert 
+
+```csharp
+var builder = MauiApp.CreateBuilder();
+builder
+    .UseMauiApp<App>()
+    .UseLocalNotification()
+    .ConfigureFonts(fonts =>
+    {
+        fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+        fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+    });
+```
+
+## Das Model erweitern (Models/TodoItem.cs)
+Wir fügen ein Feld für das Fälligkeitsdatum hinzu.
+
+```csharp
+    // Abgabedatum für ToDoItem
+    public DateTime DueDate { get; set; } = DateTime.Now;
+```
+
+## UI anpassen (AddTaskPage.xaml)
+Wir fügen einen DatePicker hinzu, damit wir das Abgabedatum komfortabel über den nativen Kalender des Smartphones auswählen können.
+
+```xml
+<Label Text="Abgabedatum / Deadline:" FontAttributes="Bold" />
+    <DatePicker x:Name="DueDatePicker" Format="dd.MM.yyyy" MinimumDate="{x:Static sys:DateTime.Now}" />
+```
+
+Damit sys erkannt wird, muss im Header der Namespace hinzugefügt werden
+
+```xml
+xmlns:sys="clr-namespace:System;assembly=mscorlib"
+```
+
+## Die Benachrichtigung planen (AddTaskPage.xaml.cs)
+Beim Speichern erstellen wir nun zusätzlich zur Datenbank-Zeile eine Benachrichtigung, die exakt zur Wunschzeit vom Betriebssystem abgefeuert wird – selbst wenn die App geschlossen ist.
+
+```csharp
+private async void OnSaveClicked(object sender, EventArgs e)
+{
+    if (string.IsNullOrWhiteSpace(TitleEntry.Text)) return;
+
+    var newTask = new TodoItem
+    {
+        Title = TitleEntry.Text,
+        Description = DescEditor.Text,
+        IsDone = false,
+        DueDate = (DateTime)DueDatePicker.Date // Datum aus der UI übernehmen
+    };
+
+    // 1. In der DB speichern
+    await _databaseService.SaveTaskAsync(newTask);
+
+    // 2. LOKALE BENACHRICHTIGUNG PLANEN
+    // Wir planen die Benachrichtigung z.B. für den Morgen des Abgabetages (oder sofort zum Testen)
+    var notificationTime = newTask.DueDate.Date.AddHours(8); // 08:00 Uhr am Abgabetag
+
+    // Zu Testzwecken kann hier die Zeit auf +10 Sekunden gesetzt werden
+    // var notificationTime = DateTime.Now.AddSeconds(10);
+
+    var request = new NotificationRequest
+    {
+        NotificationId = newTask.Id, // Eindeutige ID (nutzt die DB-ID)
+        Title = "HTL Deadline Erinnerung! 📝",
+        Description = $"Die Abgabe für '{newTask.Title}' steht bevor!",
+        BadgeNumber = 1,
+        Schedule = new NotificationRequestSchedule
+        {
+            NotifyTime = notificationTime // Wann soll es klingeln?
+        }
+    };
+
+    // An das Betriebssystem übergeben
+    await LocalNotificationCenter.Current.Show(request);
+
+    // Felder leeren und zurück zur MainPage
+    TitleEntry.Text = string.Empty;
+    DescEditor.Text = string.Empty;
+    await Shell.Current.GoToAsync("//MainPage");
+}
+```
+
+## Update TaskDetailPage
+Damit das Fälligkeitsdatum angezeigt wird, müssen wir die TaskDetailPage anpassen
+
+Update TaskDetailPage.xaml
+```xml
+<Label x:Name="StatusLabel" FontSize="14" FontAttributes="Italic" TextColor="Gray" />
+```
+
+Update Methode UpdateUI() in TaskDetailPage.xaml.cs
+```csharp
+StatusLabel.Text = SelectedTask.IsDone 
+            ? "Status: Erledigt ✅" 
+            : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy")}) ⏳";
+```

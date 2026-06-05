@@ -1,5 +1,7 @@
 using MauiToDoApp.Models;
 using MauiToDoApp.Services;
+using Plugin.LocalNotification;
+using Plugin.LocalNotification.Core.Models;
 
 namespace MauiToDoApp.Pages
 {
@@ -17,30 +19,45 @@ namespace MauiToDoApp.Pages
 
         private async void OnSaveClicked(object sender, EventArgs e)
         {
-            // Validierung: Wenn kein Titel eingegeben wurde, abbrechen
-            if (string.IsNullOrWhiteSpace(TitleEntry.Text))
-            {
-                await DisplayAlertAsync("Fehler", "Bitte gib einen Titel ein.", "OK");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(TitleEntry.Text)) return;
 
-            // Neues Datenobjekt erstellen
             var newTask = new TodoItem
             {
                 Title = TitleEntry.Text,
                 Description = DescEditor.Text,
-                IsDone = false // Neue Aufgaben sind standardmäßig offen
+                IsDone = false,
+                DueDate = (DateTime)DueDatePicker.Date // Datum aus der UI übernehmen
             };
 
-            // In der SQLite-Datenbank speichern (asynchron!)
+            // 1. In der DB speichern
             await _databaseService.SaveTaskAsync(newTask);
 
-            // Eingabefelder für die nächste Nutzung leeren
+            // 2. LOKALE BENACHRICHTIGUNG PLANEN
+            // Wir planen die Benachrichtigung z.B. für den Morgen des Abgabetages (oder sofort zum Testen)
+            //var notificationTime = newTask.DueDate.Date.AddHours(8); // 08:00 Uhr am Abgabetag
+
+            // Zu Testzwecken kann hier die Zeit auf +10 Sekunden gesetzt werden
+            var notificationTime = DateTime.Now.AddSeconds(10);
+
+            var request = new NotificationRequest
+            {
+                NotificationId = newTask.Id, // Eindeutige ID (nutzt die DB-ID)
+                Title = "HTL Deadline Erinnerung! 📝",
+                Description = $"Die Abgabe für '{newTask.Title}' steht bevor!",
+                BadgeNumber = 1,
+                Schedule = new NotificationRequestSchedule
+                {
+                    NotifyTime = notificationTime // Wann soll es klingeln?
+                }
+            };
+
+            // An das Betriebssystem übergeben
+            await LocalNotificationCenter.Current.Show(request);
+
+            // Felder leeren und zurück zur MainPage
             TitleEntry.Text = string.Empty;
             DescEditor.Text = string.Empty;
-
-            // Zurück zur vorherigen Seite (MainPage), wo sich die Liste im "OnAppearing" neu lädt
-            await Shell.Current.GoToAsync("..");
+            await Shell.Current.GoToAsync("//MainPage");
         }
 
         private async void OnCancelClicked(object sender, EventArgs e)
