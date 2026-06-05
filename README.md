@@ -311,7 +311,40 @@ builder.Services.AddSingleton<DatabaseService>();
 ```
 
 ## Integration in die UI (MainPage.xaml.cs)
-In der MainPage.xaml.cs laden wir die Daten nun aus der Datenbank statt aus einer statischen Liste:
+In der MainPage.xaml.cs laden wir die Daten nun aus der Datenbank statt aus einer statischen Liste.
+
+Füge die Services hinzu und injecte diese im Konstruktor
+
+```csharp
+    // Die Liste, die sich automatisch in der UI aktualisiert
+    private readonly DatabaseService _dbService;
+    private readonly TaskService _taskService;
+
+    public MainPage(TaskService taskService, DatabaseService dbService)
+    {
+        InitializeComponent();
+        _dbService = dbService;
+        _taskService = taskService;
+        TasksCollection.ItemsSource = _taskService.Tasks;
+    }
+```
+
+Füge die Methode OnAppearing hinzu.
+Diese Methode wird in dem Moment aufgerufen, in dem eine Seite auf dem Bildschirm erscheint oder für den Benutzer sichtbar wird.
+
+```csharp
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        var items = await _dbService.GetTasksAsync();
+
+        _taskService.Tasks.Clear();
+        foreach (var item in items)
+            _taskService.Tasks.Add(item);
+    }
+```
+
+## Mainpage.xaml.cs nach dem Update
 
 ```csharp
 public partial class MainPage : ContentPage
@@ -326,6 +359,12 @@ public partial class MainPage : ContentPage
         _dbService = dbService;
         _taskService = taskService;
         TasksCollection.ItemsSource = _taskService.Tasks;
+    }
+
+    public MainPage(TaskService taskService)
+    {
+        InitializeComponent();
+        TasksCollection.ItemsSource = taskService.Tasks;
     }
 
     private async void OnAddClicked(object sender, EventArgs e)
@@ -347,6 +386,67 @@ public partial class MainPage : ContentPage
 ```
 
 ## Update AddTaskPage.xaml.cs
+Füge das DatabadeServices hinzu und injecte dieses im Konstruktor
+
+```csharp
+    private readonly TaskService _taskService;
+    private readonly DatabaseService _databaseService;
+
+    public AddTaskPage(TaskService taskService, DatabaseService databaseService)
+    {
+        InitializeComponent();
+        _taskService = taskService;
+        _databaseService = databaseService;
+    }
+```
+
+Update der OnSaveClicked Methode, damit die Daten jetzt in der Datenbank gespeichert werden
+
+```csharp
+    private async void OnSaveClicked(object sender, EventArgs e)
+    {
+        // Validierung: Wenn kein Titel eingegeben wurde, abbrechen
+        if (string.IsNullOrWhiteSpace(TitleEntry.Text))
+        {
+            await DisplayAlertAsync("Fehler", "Bitte gib einen Titel ein.", "OK");
+            return;
+        }
+
+        // Neues Datenobjekt erstellen
+        var newTask = new TodoItem
+        {
+            Title = TitleEntry.Text,
+            Description = DescEditor.Text,
+            IsDone = false // Neue Aufgaben sind standardmäßig offen
+        };
+
+        // In der SQLite-Datenbank speichern (asynchron!)
+        await _databaseService.SaveTaskAsync(newTask);
+
+        // Eingabefelder für die nächste Nutzung leeren
+        TitleEntry.Text = string.Empty;
+        DescEditor.Text = string.Empty;
+
+        // Zurück zur vorherigen Seite (MainPage), wo sich die Liste im "OnAppearing" neu lädt
+        await Shell.Current.GoToAsync("..");
+    }
+```
+
+Update der ONCancelClick Methode damit bei einem Klick auf Cancel die Eingabe gelöscht wird
+
+```csharp
+    private async void OnCancelClicked(object sender, EventArgs e)
+    {
+        // Eingaben verwerfen und zurückgehen
+        TitleEntry.Text = string.Empty;
+        DescEditor.Text = string.Empty;
+
+        await Shell.Current.GoToAsync("..");
+    }
+```
+
+## AddTaskPage.xaml.cs nach dem Update
+
 ```csharp
 public partial class AddTaskPage : ContentPage
 {
