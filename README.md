@@ -520,18 +520,49 @@ Füge diese Methode in die MainPage.xaml.cs ein:
 ```csharp
 private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e)
 {
-    // 1. Den Sender (die Checkbox) und das dazugehörige TodoItem ermitteln
+    // Den Sender (die Checkbox) und das dazugehörige TodoItem ermitteln
     if (sender is CheckBox checkBox && checkBox.CommandParameter is TodoItem updatedItem)
     {
-        // 2. Den neuen Zustand (True/False) in das Objekt übernehmen
-        // e.Value enthält den neuen Zustand der Checkbox
-        if (updatedItem.IsDone != e.Value)
-        {
-            updatedItem.IsDone = e.Value;
-
-            // 3. Den geänderten Zustand asynchron in der SQLite-DB speichern (SQL UPDATE)
-            await _dbService.SaveTaskAsync(updatedItem);
-        }
+        // Den geänderten Zustand asynchron in der SQLite-DB speichern (SQL UPDATE)
+        await _dbService.SaveTaskAsync(updatedItem);
     }
 }
+```
+
+## Leere Listen abfangen (EmptyView):
+Das Abfangen von leeren Zuständen (sogenannte Zero-Data States oder Empty States) ist ein entscheidender Schritt für eine professionelle User Experience (UX). Eine App muss auch dann gut aussehen, wenn noch keine Daten vorhanden sind.
+In .NET MAUI ist das dank der EmptyView-Property der CollectionView extrem einfach gelöst – man benötigt dafür nicht einmal eine einzige Zeile Code-Behind.
+
+## Die UI erweitern (MainPage.xaml)
+Die CollectionView besitzt das Attribut EmptyView. Dort kann man entweder einen einfachen Text (String) hineinschreiben oder über CollectionView.EmptyView ein komplett eigenes XAML-Layout (z. B. mit einem Icon und einer genaueren Beschreibung) definieren.
+
+Suche in der MainPage.xaml nach deiner <CollectionView ...> und passe sie wie folgt an:
+
+```xml
+<CollectionView x:Name="TasksCollection" Grid.Row="0">
+    
+    <CollectionView.EmptyView>
+        <VerticalStackLayout VerticalOptions="Center" 
+                             HorizontalOptions="Center" 
+                             Spacing="10" 
+                             Padding="30">
+            
+            <Label Text="Keine Aufgaben vorhanden!" 
+                   FontSize="20" 
+                   FontAttributes="Bold" 
+                   HorizontalTextAlignment="Center" 
+                   TextColor="{AppThemeBinding Light=#512BD4, Dark=#A294F9}" />
+            
+            <Label Text="Erstelle deine erste Aufgabe über den Tab 'Hinzufügen' oder den Button unten." 
+                   FontSize="14" 
+                   HorizontalTextAlignment="Center" 
+                   TextColor="Gray" />
+        </VerticalStackLayout>
+    </CollectionView.EmptyView>
+
+    <CollectionView.ItemTemplate>
+        <DataTemplate>
+            </DataTemplate>
+    </CollectionView.ItemTemplate>
+</CollectionView>
 ```

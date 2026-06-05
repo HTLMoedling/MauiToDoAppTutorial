@@ -42,18 +42,11 @@ namespace MauiToDoApp
 
         private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e)
         {
-            // 1. Den Sender (die Checkbox) und das dazugehörige TodoItem ermitteln
+            // Den Sender (die Checkbox) und das dazugehörige TodoItem ermitteln
             if (sender is CheckBox checkBox && checkBox.CommandParameter is TodoItem updatedItem)
             {
-                // 2. Den neuen Zustand (True/False) in das Objekt übernehmen
-                // e.Value enthält den neuen Zustand der Checkbox
-                if (updatedItem.IsDone != e.Value)
-                {
-                    updatedItem.IsDone = e.Value;
-
-                    // 3. Den geänderten Zustand asynchron in der SQLite-DB speichern (SQL UPDATE)
-                    await _dbService.SaveTaskAsync(updatedItem);
-                }
+                // Den geänderten Zustand asynchron in der SQLite-DB speichern (SQL UPDATE)
+                await _dbService.SaveTaskAsync(updatedItem);
             }
         }
     }
