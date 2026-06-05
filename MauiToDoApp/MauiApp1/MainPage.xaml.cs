@@ -1,24 +1,20 @@
-﻿namespace MauiApp1
+﻿using MauiToDoApp.Pages;
+using MauiToDoApp.Services;
+
+namespace MauiToDoApp
 {
     public partial class MainPage : ContentPage
     {
-        int count = 0;
-
-        public MainPage()
+        public MainPage(TaskService taskService)
         {
             InitializeComponent();
+            TasksCollection.ItemsSource = taskService.Tasks;
         }
 
-        private void OnCounterClicked(object? sender, EventArgs e)
+        private async void OnAddClicked(object sender, EventArgs e)
         {
-            count++;
-
-            if (count == 1)
-                CounterBtn.Text = $"Clicked {count} time";
-            else
-                CounterBtn.Text = $"Clicked {count} times";
-
-            SemanticScreenReader.Announce(CounterBtn.Text);
+            // Wir navigieren zur AddTaskPage
+            await Shell.Current.GoToAsync(nameof(AddTaskPage));
         }
     }
 }

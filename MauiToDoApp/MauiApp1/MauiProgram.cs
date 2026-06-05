@@ -1,6 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using MauiToDoApp.Services;
+using Microsoft.Extensions.Logging;
 
-namespace MauiApp1
+namespace MauiToDoApp
 {
     public static class MauiProgram
     {
@@ -15,8 +16,11 @@ namespace MauiApp1
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+            // Services registrieren
+            builder.Services.AddSingleton<TaskService>();
+
 #if DEBUG
-    		builder.Logging.AddDebug();
+            builder.Logging.AddDebug();
 #endif
 
             return builder.Build();

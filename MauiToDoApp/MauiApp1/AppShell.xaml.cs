@@ -1,10 +1,13 @@
-﻿namespace MauiApp1
+﻿using MauiToDoApp.Pages;
+
+namespace MauiToDoApp
 {
     public partial class AppShell : Shell
     {
         public AppShell()
         {
             InitializeComponent();
+            Routing.RegisterRoute(nameof(AddTaskPage), typeof(AddTaskPage));
         }
     }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiToDoApp.Pages.AddTaskPage"
+             Title="Aufgabe hinzufügen">
+    <VerticalStackLayout Padding="20" Spacing="15">
+        <Entry x:Name="TitleEntry" Placeholder="Titel der Aufgabe" />
+        <Editor x:Name="DescEditor" Placeholder="Beschreibung" HeightRequest="100" />
+        <Button Text="Speichern" Clicked="OnSaveClicked" />
+        <Button Text="Abbrechen" Clicked="OnCancelClicked" BackgroundColor="Gray" />
+    </VerticalStackLayout>
+</ContentPage>
