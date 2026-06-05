@@ -19,6 +19,7 @@ namespace MauiToDoApp
 
             // Services registrieren
             builder.Services.AddSingleton<TaskService>();
+            builder.Services.AddSingleton<DatabaseService>();
 
 #if DEBUG
             builder.Logging.AddDebug();
