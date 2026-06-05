@@ -8,6 +8,7 @@ namespace MauiToDoApp
         {
             InitializeComponent();
             Routing.RegisterRoute(nameof(AddTaskPage), typeof(AddTaskPage));
+            Routing.RegisterRoute(nameof(TaskDetailPage), typeof(TaskDetailPage));
         }
     }
 }

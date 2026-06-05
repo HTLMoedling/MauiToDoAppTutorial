@@ -562,7 +562,74 @@ Suche in der MainPage.xaml nach deiner <CollectionView ...> und passe sie wie fo
 
     <CollectionView.ItemTemplate>
         <DataTemplate>
-            </DataTemplate>
+        </DataTemplate>
     </CollectionView.ItemTemplate>
 </CollectionView>
+```
+
+# Datenübergabe an eine Detailseite (Query Property Attribut):
+Durch parametrisierte Navigation ist es möglich Daten sicher zwischen verschiedenen Bildschirmen zu transportiert, ohne auf unsaubere globale Variablen zurückgreifen zu müssen.
+In .NET MAUI funktioniert das über Query-Parameter, ähnlich wie man es von URLs aus der Webentwicklung kennt (z. B. seite?parameter=wert).
+
+## Eine neue Detailseite erstellen (TaskDetailPage.xaml)
+Füge dem Projekt eine neue .NET MAUI ContentPage (XAML) mit dem Namen TaskDetailPage.xaml hinzu. Diese Seite soll die Details einer ausgewählten Aufgabe anzeigen.
+
+```xml
+<VerticalStackLayout Padding="20" Spacing="20">
+    <Label x:Name="TitleLabel" FontSize="24" FontAttributes="Bold" TextColor="#512BD4" />
+
+    <Label x:Name="StatusLabel" FontSize="14" FontAttributes="Italic" TextColor="Gray" />
+
+    <BoxView HeightRequest="1" BackgroundColor="LightGray" />
+
+    <Label Text="Beschreibung:" FontSize="14" FontAttributes="Bold" />
+    <Label x:Name="DescLabel" FontSize="16" />
+
+    <Button Text="Schließen" Clicked="OnCloseClicked" Margin="0,20,0,0" />
+</VerticalStackLayout>
+```
+
+## Die Logik mit QueryProperty (TaskDetailPage.xaml.cs)
+Hier kommt die Magie von MAUI ins Spiel. Wir nutzen das [QueryProperty]-Attribut über der Klasse. Es fängt den Parameter aus der Navigation ab und schleust ihn automatisch in eine Property (hier SelectedTask) ein.
+
+```csharp
+// Das Attribut verknüpft den Query-Namen "Item" mit der C#-Property "SelectedTask"
+[QueryProperty(nameof(SelectedTask), "Item")]
+public partial class TaskDetailPage : ContentPage
+{
+    private TodoItem _selectedTask;
+
+    public TodoItem SelectedTask
+    {
+        get => _selectedTask;
+        set
+        {
+            _selectedTask = value;
+            // Sobald die Daten reinkommen, befüllen wir die UI-Elemente
+            UpdateUI();
+        }
+    }
+
+    public TaskDetailPage()
+    {
+        InitializeComponent();
+    }
+
+    private void UpdateUI()
+    {
+        if (SelectedTask is null) return;
+
+        TitleLabel.Text = SelectedTask.Title;
+        DescLabel.Text = string.IsNullOrWhiteSpace(SelectedTask.Description)
+            ? "Keine Beschreibung vorhanden."
+            : SelectedTask.Description;
+    }
+
+    private async void OnCloseClicked(object sender, EventArgs e)
+    {
+        // Da diese Seite per "GoToAsync" oben auf den Stack gelegt wird,
+        // bringt uns ".." sauber wieder zurück!
+        await Shell.Current.GoToAsync("..");
+    }
+}
 ```

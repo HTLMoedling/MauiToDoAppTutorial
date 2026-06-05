@@ -49,5 +49,29 @@ namespace MauiToDoApp
                 await _dbService.SaveTaskAsync(updatedItem);
             }
         }
+
+        private async void OnTaskSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // e.CurrentSelection enthält das ausgewählte Element (bzw. mehrere, falls erlaubt)
+            if (e.CurrentSelection.FirstOrDefault() is TodoItem clickedTask)
+            {
+                // 1. Parameter-Dictionary erstellen. Der Schlüssel ("Item") muss exakt 
+                // mit dem Namen im [QueryProperty]-Attribut der Detailseite übereinstimmen!
+                var navigationParameter = new Dictionary<string, object>
+                {
+                    { "Item", clickedTask }
+                };
+
+                // 2. Navigieren und Parameter übergeben
+                await Shell.Current.GoToAsync(nameof(TaskDetailPage), navigationParameter);
+
+                // 3. WICHTIG: Die Auswahl in der UI sofort wieder aufheben, 
+                // damit das Event beim nächsten Klick auf dasselbe Item wieder feuert.
+                if (sender is CollectionView collectionView)
+                {
+                    collectionView.SelectedItem = null;
+                }
+            }
+        }
     }
 }

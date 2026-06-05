@@ -7,7 +7,10 @@
     <Grid RowDefinitions="*, Auto" Padding="20">
         
         <!-- Liste der Aufgaben -->
-        <CollectionView x:Name="TasksCollection" Grid.Row="0">
+        <CollectionView x:Name="TasksCollection" 
+                Grid.Row="0"
+                SelectionMode="Single"
+                SelectionChanged="OnTaskSelectionChanged">
             <CollectionView.EmptyView>
                 <VerticalStackLayout VerticalOptions="Center" 
                              HorizontalOptions="Center" 
