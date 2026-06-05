@@ -1,4 +1,5 @@
-﻿using MauiToDoApp.Services;
+﻿using MauiToDoApp.Pages;
+using MauiToDoApp.Services;
 using Microsoft.Extensions.Logging;
 
 namespace MauiToDoApp
@@ -22,6 +23,10 @@ namespace MauiToDoApp
 #if DEBUG
             builder.Logging.AddDebug();
 #endif
+
+            // Pages (Wichtig für die TabBar!)
+            builder.Services.AddSingleton<MainPage>();
+            builder.Services.AddSingleton<AddTaskPage>();
 
             return builder.Build();
         }

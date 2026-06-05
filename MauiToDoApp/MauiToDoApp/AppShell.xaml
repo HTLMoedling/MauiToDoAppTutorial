@@ -6,9 +6,20 @@
     xmlns:local="clr-namespace:MauiToDoApp"
     Title="MauiApp1">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+    <TabBar>
+        <!-- Tab 1: Die Aufgabenliste -->
+        <Tab Title="Aufgaben" Icon="list_icon.png">
+            <ShellContent 
+                ContentTemplate="{DataTemplate local:MainPage}" 
+                Route="MainPage" />
+        </Tab>
+
+        <!-- Tab 2: Neue Aufgabe hinzufügen -->
+        <Tab Title="Hinzufügen" Icon="add_icon.png">
+            <ShellContent 
+                ContentTemplate="{DataTemplate pages:AddTaskPage}" 
+                Route="AddTaskPage" />
+        </Tab>
+    </TabBar>
 
 </Shell>
