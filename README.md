@@ -500,3 +500,38 @@ public partial class AddTaskPage : ContentPage
 }
 ```
 
+# Checkbox-Zustand in DB speichern
+Damit der Zustand der Checkbox in der Datenbank gespeichert wird, müssen wir der Checkbox sagen, dass sie bei einer Statusänderung eine Methode im Code-Behind aufrufen soll. Dazu nutzen wir das Event CheckedChanged.
+Zusätzlich übergeben wir auch hier das aktuelle TodoItem als CommandParameter, damit wir im Code-Behind wissen, zu welcher Aufgabe die geklickte Checkbox gehört.
+
+## Die UI anpassen (MainPage.xaml)
+Suche in der MainPage.xaml nach der <CheckBox ... /> und passe sie wie folgt an:
+
+```xml
+<CheckBox IsChecked="{Binding IsDone}"
+          CheckedChanged="OnTaskCheckedChanged"
+          CommandParameter="{Binding .}" />
+```
+
+## Die Logik implementieren (MainPage.xaml.cs)
+Im Code-Behind fangen wir das Event ab. Da wir im DatabaseService bereits die Methode SaveTaskAsync(item) so intelligent geschrieben haben, dass sie automatisch ein Update in der SQL-Datenbank ausführt, wenn das Item bereits eine Id besitzt, müssen wir dem Service einfach nur das aktualisierte Objekt übergeben.
+Füge diese Methode in die MainPage.xaml.cs ein:
+
+```csharp
+private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e)
+{
+    // 1. Den Sender (die Checkbox) und das dazugehörige TodoItem ermitteln
+    if (sender is CheckBox checkBox && checkBox.CommandParameter is TodoItem updatedItem)
+    {
+        // 2. Den neuen Zustand (True/False) in das Objekt übernehmen
+        // e.Value enthält den neuen Zustand der Checkbox
+        if (updatedItem.IsDone != e.Value)
+        {
+            updatedItem.IsDone = e.Value;
+
+            // 3. Den geänderten Zustand asynchron in der SQLite-DB speichern (SQL UPDATE)
+            await _dbService.SaveTaskAsync(updatedItem);
+        }
+    }
+}
+```
