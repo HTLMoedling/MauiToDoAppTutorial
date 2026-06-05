@@ -9,8 +9,8 @@ namespace MauiToDoApp.Models
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
         public bool IsDone { get; set; }
         // Abgabedatum für ToDoItem
         public DateTime DueDate { get; set; } = DateTime.Now;

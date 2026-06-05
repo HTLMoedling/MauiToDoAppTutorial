@@ -21,7 +21,7 @@ namespace MauiToDoApp
         private async void OnAddClicked(object sender, EventArgs e)
         {
             // Wir navigieren zur AddTaskPage
-            await Shell.Current.GoToAsync(nameof(AddTaskPage));
+            await Shell.Current.GoToAsync($"//{nameof(AddTaskPage)}");
         }
 
         protected override async void OnAppearing()

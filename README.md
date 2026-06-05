@@ -805,3 +805,25 @@ StatusLabel.Text = SelectedTask.IsDone
             ? "Status: Erledigt ✅" 
             : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy")}) ⏳";
 ```
+
+# Verbessern der Navigation
+Wenn man auf der MainPage.xaml auf Aufgabe hinzufügen klickt, wird nicht in der Tab (AddTaskPage.xaml gewechsel (ersichtlich daran, dass der Tab nicht selektiert wird) sonder die neue Seite wird auf die MainPage gelegt (Push-Navigation).
+
+Um dies zu ändern, müssen wir beim Routing mit absoluten Pfaden arbeiten.
+
+## Update MainPage.xaml.cs
+
+```csharp
+private async void OnAddClicked(object sender, EventArgs e)
+{
+    // Wir navigieren zur AddTaskPage
+    await Shell.Current.GoToAsync($"//{nameof(AddTaskPage)}");
+}
+```
+
+## Update AddTaskPage.xaml.cs
+Ändere GoToAsync zu:
+
+```csharp
+await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
+```

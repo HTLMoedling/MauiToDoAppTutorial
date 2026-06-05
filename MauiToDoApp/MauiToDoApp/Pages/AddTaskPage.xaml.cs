@@ -57,7 +57,7 @@ namespace MauiToDoApp.Pages
             // Felder leeren und zurück zur MainPage
             TitleEntry.Text = string.Empty;
             DescEditor.Text = string.Empty;
-            await Shell.Current.GoToAsync("//MainPage");
+            await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
         }
 
         private async void OnCancelClicked(object sender, EventArgs e)
@@ -66,7 +66,7 @@ namespace MauiToDoApp.Pages
             TitleEntry.Text = string.Empty;
             DescEditor.Text = string.Empty;
 
-            await Shell.Current.GoToAsync("..");
+            await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
         }
     }
 }
