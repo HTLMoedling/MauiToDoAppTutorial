@@ -10,7 +10,9 @@
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <HorizontalStackLayout Spacing="15" Padding="10">
-                        <CheckBox IsChecked="{Binding IsDone}" />
+                        <CheckBox IsChecked="{Binding IsDone}"
+                            CheckedChanged="OnTaskCheckedChanged"
+                            CommandParameter="{Binding .}" />
                         <Label Text="{Binding Title}" VerticalOptions="Center" FontSize="18" />
                     </HorizontalStackLayout>
                 </DataTemplate>
