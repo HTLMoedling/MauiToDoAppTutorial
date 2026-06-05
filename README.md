@@ -529,7 +529,7 @@ private async void OnTaskCheckedChanged(object sender, CheckedChangedEventArgs e
 }
 ```
 
-## Leere Listen abfangen (EmptyView):
+# Leere Listen abfangen (EmptyView):
 Das Abfangen von leeren Zuständen (sogenannte Zero-Data States oder Empty States) ist ein entscheidender Schritt für eine professionelle User Experience (UX). Eine App muss auch dann gut aussehen, wenn noch keine Daten vorhanden sind.
 In .NET MAUI ist das dank der EmptyView-Property der CollectionView extrem einfach gelöst – man benötigt dafür nicht einmal eine einzige Zeile Code-Behind.
 

@@ -5,8 +5,27 @@
              Title="HTL Aufgaben">
 
     <Grid RowDefinitions="*, Auto" Padding="20">
+        
         <!-- Liste der Aufgaben -->
         <CollectionView x:Name="TasksCollection" Grid.Row="0">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout VerticalOptions="Center" 
+                             HorizontalOptions="Center" 
+                             Spacing="10" 
+                             Padding="30">
+
+                    <Label Text="Keine Aufgaben vorhanden!" 
+                   FontSize="20" 
+                   FontAttributes="Bold" 
+                   HorizontalTextAlignment="Center" 
+                   TextColor="{AppThemeBinding Light=#512BD4, Dark=#A294F9}" />
+
+                    <Label Text="Erstelle deine erste Aufgabe über den Tab 'Hinzufügen' oder den Button unten." 
+                   FontSize="14" 
+                   HorizontalTextAlignment="Center" 
+                   TextColor="Gray" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <HorizontalStackLayout Spacing="15" Padding="10">
