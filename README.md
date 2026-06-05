@@ -360,6 +360,7 @@ public partial class MainPage : ContentPage
         _taskService = taskService;
         TasksCollection.ItemsSource = _taskService.Tasks;
     }
+```
 
     public MainPage(TaskService taskService)
     {
@@ -373,6 +374,7 @@ public partial class MainPage : ContentPage
         await Shell.Current.GoToAsync(nameof(AddTaskPage));
     }
 
+```csharp
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -382,7 +384,6 @@ public partial class MainPage : ContentPage
         foreach (var item in items)
             _taskService.Tasks.Add(item);
     }
-}
 ```
 
 ## Update AddTaskPage.xaml.cs
