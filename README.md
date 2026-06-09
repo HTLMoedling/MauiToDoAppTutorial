@@ -361,13 +361,6 @@ public partial class MainPage : ContentPage
         _taskService = taskService;
         TasksCollection.ItemsSource = _taskService.Tasks;
     }
-```
-
-    public MainPage(TaskService taskService)
-    {
-        InitializeComponent();
-        TasksCollection.ItemsSource = taskService.Tasks;
-    }
 
     private async void OnAddClicked(object sender, EventArgs e)
     {
@@ -375,7 +368,6 @@ public partial class MainPage : ContentPage
         await Shell.Current.GoToAsync(nameof(AddTaskPage));
     }
 
-```csharp
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -434,7 +426,7 @@ Update der OnSaveClicked Methode, damit die Daten jetzt in der Datenbank gespeic
     }
 ```
 
-Update der ONCancelClick Methode damit bei einem Klick auf Cancel die Eingabe gelöscht wird
+Update der OnCancelClick Methode damit bei einem Klick auf Cancel die Eingabe gelöscht wird
 
 ```csharp
     private async void OnCancelClicked(object sender, EventArgs e)
@@ -563,6 +555,7 @@ Suche in der MainPage.xaml nach deiner <CollectionView ...> und passe sie wie fo
 
     <CollectionView.ItemTemplate>
         <DataTemplate>
+        ...
         </DataTemplate>
     </CollectionView.ItemTemplate>
 </CollectionView>
