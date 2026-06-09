@@ -49,11 +49,12 @@ Title="HTL Aufgaben">
 Jetzt erstellen wir die Seite, auf der wir neue Aufgaben eingeben.
 
 ## Detailseite erstellen (AddTaskPage.xaml)
-Rechtsklick aufs Projekt -> Hinzufügen -> Neues Element -> .NET MAUI ContentPage (XAML).
+Erstelle einen neuen Ordner Pages
+Rechtsklick aufs den Ordner -> Hinzufügen -> Neues Element -> .NET MAUI ContentPage (XAML).
 ```xml
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
 xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-x:Class="TodoApp.AddTaskPage"
+x:Class="TodoApp.Pages.AddTaskPage"
 Title="Aufgabe hinzufügen">
     <VerticalStackLayout Padding="20" Spacing="15">
         <Entry x:Name="TitleEntry" Placeholder="Titel der Aufgabe" />
@@ -129,12 +130,10 @@ Hier nutzen wir einen kleinen "Trick": Wir greifen auf die Liste der TaskService
 ```csharp
 using TodoApp.Models;
 
-namespace TodoApp;
+namespace TodoApp.Pages;
 
 public partial class AddTaskPage : ContentPage
 {
-    private readonly TaskService _taskService;
-
     public AddTaskPage(TaskService taskService)
     {
         InitializeComponent();
