@@ -133,8 +133,6 @@ namespace TodoApp;
 
 public partial class AddTaskPage : ContentPage
 {
-    private readonly TaskService _taskService;
-
     public AddTaskPage(TaskService taskService)
     {
         InitializeComponent();
