@@ -555,7 +555,7 @@ Suche in der MainPage.xaml nach deiner <CollectionView ...> und passe sie wie fo
 
     <CollectionView.ItemTemplate>
         <DataTemplate>
-        ...
+            ...
         </DataTemplate>
     </CollectionView.ItemTemplate>
 </CollectionView>
