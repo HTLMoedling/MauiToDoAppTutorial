@@ -134,6 +134,8 @@ namespace TodoApp.Pages;
 
 public partial class AddTaskPage : ContentPage
 {
+    private TaskService _taskService;
+
     public AddTaskPage(TaskService taskService)
     {
         InitializeComponent();
