@@ -380,7 +380,7 @@ public partial class MainPage : ContentPage
 ```
 
 ## Update AddTaskPage.xaml.cs
-Füge das DatabadeServices hinzu und injecte dieses im Konstruktor
+Füge das DatabaseServices hinzu und injecte dieses im Konstruktor
 
 ```csharp
     private readonly TaskService _taskService;
@@ -702,7 +702,7 @@ Die Datei kann auch direkt im Explorer geöffnet (Notepad++) und bearbeitet werd
 ```
 
 ## Paket in MauiProgram.cs initialisiert 
-
+Registriere die Notification im builder (.UseLocalNotification())
 ```csharp
 var builder = MauiApp.CreateBuilder();
 builder
@@ -788,11 +788,6 @@ private async void OnSaveClicked(object sender, EventArgs e)
 ## Update TaskDetailPage
 Damit das Fälligkeitsdatum angezeigt wird, müssen wir die TaskDetailPage anpassen
 
-Update TaskDetailPage.xaml
-```xml
-<Label x:Name="StatusLabel" FontSize="14" FontAttributes="Italic" TextColor="Gray" />
-```
-
 Update Methode UpdateUI() in TaskDetailPage.xaml.cs
 ```csharp
 StatusLabel.Text = SelectedTask.IsDone 
@@ -821,3 +816,444 @@ private async void OnAddClicked(object sender, EventArgs e)
 ```csharp
 await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
 ```
+
+
+# Validierung dess User Inputs
+Für eine optimale Usability der App sollte jeder Input direkt vaidiert werden und Fehler dem User unmittelbar bei der Eingabe in der UI angezeigt werden.
+
+Um die Validierung komplett vom Code-Behind zu trennen, verwenden wir Behaviors. Ein Behavior ist eine Klasse, die sich an ein UI-Element (wie ein Entry) "anhängt" und dessen Verhalten überwacht – völlig unabhängig von deiner Page-Logik.
+
+## Das EntryValidationBehavior (Die Logik-Klasse)
+Erstelle einen neuen Ordner Common und darin eine neue Klasse EntryValidationBehavior. 
+Diese prüft den Text, während der Nutzer tippt.
+
+```csharp
+public class EntryValidationBehavior : Behavior<Entry>
+{
+    protected override void OnAttachedTo(Entry entry)
+    {
+        entry.TextChanged += OnEntryTextChanged;
+        base.OnAttachedTo(entry);
+    }
+
+    protected override void OnDetachingFrom(Entry entry)
+    {
+        entry.TextChanged -= OnEntryTextChanged;
+        base.OnDetachingFrom(entry);
+    }
+
+    private void OnEntryTextChanged(object sender, TextChangedEventArgs e)
+    {
+        var entry = (Entry)sender;
+        // Beispiel: Titel muss mindestens 3 Zeichen lang sein
+        bool isValid = !string.IsNullOrWhiteSpace(e.NewTextValue) && e.NewTextValue.Length >= 3;
+
+        // Visuelles Feedback über den VisualState
+        VisualStateManager.GoToState(entry, isValid ? "Normal" : "Invalid");
+    }
+}
+```
+
+## Die XAML-Einbindung (Keine Logik im Code-Behind)
+Jetzt müssen wir in der AddTaskPage.xaml nur noch das Behavior zuweisen. Der Code-Behind bleibt für diesen Teil komplett leer.
+
+```csharp
+<Entry x:Name="TitleEntry" Placeholder="Titel der Aufgabe">
+    <Entry.Behaviors>
+        <local:EntryValidationBehavior />
+    </Entry.Behaviors>
+</Entry>
+```
+
+# MAUI App auf MVVM umstellen
+Die Umstellung von Code-Behind (Ereignis-basiert) auf das MVVM-Pattern (Model-View-ViewModel) ist ein wichtiger Schritt um den Code testbar, wartbar und sauberer zu machen.
+
+## Grundkonzept: Was ändert sich?
+- View (XAML): Enthält nur noch das Layout. Keine x:Name für UI-Elemente mehr, stattdessen DataBinding.
+- ViewModel (C#): Enthält die Logik, Properties für die UI und Commands statt Clicked-Events.
+- Model: Bleibt gleich (dein TodoItem).
+
+## Vorbereitung (CommunityToolkit.Mvvm)
+Installiere das NuGet-Paket CommunityToolkit.Mvvm. 
+Es ist der Standard für MAUI und nimmt dir durch Source Generators extrem viel Arbeit ab (z. B. [ObservableProperty] für INotifyPropertyChanged).
+
+```xml
+install-package CommunityToolkit.Mvvm
+```
+
+## Basis-ViewModel erstellen
+Erstelle einen neuen Ordner ViewModels
+Erstelle in diesem Ordner eine Klasse BaseViewModel, von der alle deine ViewModels erben.
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace MauiToDoApp.ViewModels;
+
+public partial class BaseViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _title;
+
+    [ObservableProperty]
+    private bool _isBusy;
+}
+```
+
+### [ObservableProperty]
+Das Community Toolkit nutzt C#-Source-Generatoren. Wenn du ein Attribut auf ein privates Feld setzt, generiert der Compiler im Hintergrund automatisch die passende öffentliche Eigenschaft für dich.
+
+## MainPageViewModel
+Erstelle im selber Ordner eine Klasse MainPageViewModel.cs.
+Verschiebe die Logik aus MainPage.xaml.cs hierher.
+
+Folgende Schritte müssen wir nun durchführen:
+
+Leite die Klasse von BaseViewModel ab
+
+```csharp
+public partial class MainPageViewModel : BaseViewModel
+```
+
+
+Füge ein Field für das Databaseservice hinzu
+Füge weiters eine neue Property Tasks hinzu. Somit können wir aus der View direkt auf diese Property mit allen tasks binden
+
+```csharp
+private readonly DatabaseService _dbService;
+public ObservableCollection<TodoItem> Tasks { get; } = new();
+```
+
+Erstelle nun den Konstruktor und die Methode LoadTasksAsync()
+
+```cahrp
+public MainPageViewModel(DatabaseService dbService)
+{
+    _dbService = dbService;
+    Title = "HTL Aufgaben";
+    LoadTasksAsync();
+}
+
+private async Task LoadTasksAsync()
+{
+    var items = await _dbService.GetTasksAsync();
+    Tasks.Clear();
+    foreach (var item in items) Tasks.Add(item);
+}
+```
+Hier setzen wir den Titel für unsere View (ObservableProperty aus BaseViewModel)
+Weiters werden in LoadTasksAsync() alle Tasks aus der Datebank geladen.
+
+Erstelle nun die restlichen Methoden um direkt aus der View diese als Commands aufzurufen
+
+```csharp
+[RelayCommand]
+private async Task ToggleTaskStatus(TodoItem item)
+{
+    if (item == null) return;
+    await _dbService.SaveTaskAsync(item);
+}
+
+[RelayCommand]
+private async Task NavigateToDetails(TodoItem item)
+{
+    if (item == null) return;
+    await Shell.Current.GoToAsync(nameof(TaskDetailPage), new Dictionary<string, object> { { "Item", item } });
+}
+
+[RelayCommand]
+private async Task GoToAddPage() => await Shell.Current.GoToAsync($"//{nameof(AddTaskPage)}");
+```
+
+In der Welt von MVVM ist das RelayCommand (im Community Toolkit [RelayCommand] oder die Klasse RelayCommand) das Gegenstück zu ObservableProperty. Während ObservableProperty Datenflüsse von deinem ViewModel zur View (UI) steuert, steuert das RelayCommand Benutzerinteraktionen von der View zurück zum ViewModel.
+
+> [!NOTE]
+> Um das Coomand zu deaktivieren/aktivieren kann dies mittels CanExecute realisiert werden.
+
+>```csharp
+>[RelayCommand(CanExecute = nameof(CanSave))]
+>private void Save() { /* ... */ }
+>private bool CanSave() => !string.IsNullOrEmpty(Name);
+>```
+
+Nun können wir alle Methoden der MainPage.xaml.cs löschen.
+Nun injecten wir das Viewmodel im Konstruktor und weisen es dem BindingContext zu
+
+```csharp
+using MauiToDoApp.ViewModels;
+
+namespace MauiToDoApp;
+
+public partial class MainPage : ContentPage
+{
+    public MainPage(MainPageViewModel vm)
+    {
+        InitializeComponent();
+        BindingContext = vm;
+    }
+}
+```
+
+Nun passen wir die MainPage.xaml folgendermaßen an, sodass wir nichtmehr auf das Codebehind File zugreifen, sondern nur noch auf das ViewModel
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:MauiToDoApp.Models"
+             xmlns:vm="clr-namespace:MauiToDoApp.ViewModels"
+             x:Class="MauiToDoApp.MainPage"
+             Title="{Binding Title}">
+
+    <Grid RowDefinitions="*, Auto" Padding="20">
+        <!-- Liste der Aufgaben -->
+        <CollectionView Grid.Row="0"
+                        ItemsSource="{Binding Tasks}"
+                        SelectionMode="Single"
+                        SelectionChangedCommand="{Binding NavigateToDetailsCommand}"
+                        SelectionChangedCommandParameter="{Binding Source={RelativeSource Self}, Path=SelectedItem}">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout VerticalOptions="Center" 
+                 HorizontalOptions="Center" 
+                 Spacing="10" 
+                 Padding="30">
+
+                    <Label Text="Keine Aufgaben vorhanden!" 
+                        FontSize="20" 
+                        FontAttributes="Bold" 
+                        HorizontalTextAlignment="Center" 
+                        TextColor="{AppThemeBinding Light=#512BD4, Dark=#A294F9}" />
+
+                    <Label Text="Erstelle deine erste Aufgabe über den Tab 'Hinzufügen' oder den Button unten." 
+                        FontSize="14" 
+                        HorizontalTextAlignment="Center" 
+                        TextColor="Gray" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:TodoItem">
+                    <HorizontalStackLayout Spacing="15" Padding="10">
+                        <CheckBox IsChecked="{Binding IsDone}"
+                                  Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MainPageViewModel}}, Path=ToggleTaskStatusCommand}"
+                                  CommandParameter="{Binding .}" />
+                        <Label Text="{Binding Title}" VerticalOptions="Center" FontSize="18" />
+                    </HorizontalStackLayout>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Button Grid.Row="1" Text="Neue Aufgabe" 
+                Command="{Binding GoToAddPageCommand}" 
+                BackgroundColor="#512BD4" TextColor="White" Margin="0,10,0,0" />
+    </Grid>
+</ContentPage>
+```
+
+Zu guter letzt müssen wir das ViewModel nur  och im File MauiProgram.cs registrieren
+
+```csharp
+builder.Services.AddSingleton<MainPageViewModel>();
+```
+## AddTaskPageViewModel
+Nun stellen wir die AddTaskPage auf MVVM um.
+
+Erstelle ein neues File AddTaskPageViewModel.cs im Ordner ViewModels mit folgendem Inhalt
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Models;
+using MauiToDoApp.Services;
+using Plugin.LocalNotification;
+using Plugin.LocalNotification.Core.Models;
+
+namespace MauiToDoApp.ViewModels;
+
+public partial class AddTaskPageViewModel : ObservableObject
+{
+    private readonly DatabaseService _databaseService;
+
+    [ObservableProperty] private string _title;
+    [ObservableProperty] private string _description;
+    [ObservableProperty] private DateTime _dueDate = DateTime.Now;
+
+    public AddTaskPageViewModel(DatabaseService databaseService)
+    {
+        _databaseService = databaseService;
+    }
+
+    [RelayCommand]
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(Title)) return;
+
+        var newTask = new TodoItem
+        {
+            Title = Title,
+            Description = Description,
+            IsDone = false,
+            DueDate = DueDate
+        };
+
+        await _databaseService.SaveTaskAsync(newTask);
+
+        // Benachrichtigung planen
+        await LocalNotificationCenter.Current.Show(new NotificationRequest
+        {
+            NotificationId = newTask.Id,
+            Title = "HTL Deadline Erinnerung! 📝",
+            Description = $"Die Abgabe für '{newTask.Title}' steht bevor!",
+            Schedule = new NotificationRequestSchedule { NotifyTime = DateTime.Now.AddSeconds(10) }
+        });
+
+        // Felder zurücksetzen
+        Title = string.Empty;
+        Description = string.Empty;
+
+                // Felder zurücksetzen
+        Title = string.Empty;
+        Description = string.Empty;
+
+        await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
+    }
+
+    [RelayCommand]
+    private async Task Cancel() => await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
+}
+```
+
+### AddTaskPage.xaml
+Wir passen nun die AddTaskPage.xaml so an, dass wir die Eingabefelder und Buttons nun via DataBinding mit dem ViewModel verbinden.
+
+ ```xml
+ <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             x:Class="MauiToDoApp.Pages.AddTaskPage"
+             Title="Aufgabe hinzufügen">
+    <VerticalStackLayout Padding="20" Spacing="15">
+        <Entry Text="{Binding Title}" Placeholder="Titel der Aufgabe" />
+        <Editor Text="{Binding Description}" Placeholder="Beschreibung" HeightRequest="100" />
+
+        <Label Text="Abgabedatum / Deadline:" FontAttributes="Bold" />
+        <DatePicker Date="{Binding DueDate}" Format="dd.MM.yyyy" />
+
+        <Button Text="Speichern" Command="{Binding SaveCommand}" />
+        <Button Text="Abbrechen" Command="{Binding CancelCommand}" BackgroundColor="Gray" />
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+### AddTaskPage.xaml.cs
+Lösche nun wieder alle Methoden im Codebehind File und weise nun dem BindingContex das ViewModel zu.
+
+```csharp
+using MauiToDoApp.ViewModels;
+
+namespace MauiToDoApp.Pages
+{
+    public partial class AddTaskPage : ContentPage
+    {
+        public AddTaskPage(AddTaskPageViewModel vm)
+        {
+            InitializeComponent();
+            BindingContext = vm;
+        }
+    }
+}
+```
+
+Registriere nun wieder das ViewModel in MauiProgram.cs
+
+```csharp
+builder.Services.AddSingleton<AddTaskPageViewModel>();
+```
+
+## TaskDetailViewModel
+Jetzt machen wir das selbe mit der TaskDetailPage
+
+### TaskDetailPageViewModel
+Das ViewModel erhält das TodoItem via QueryProperty und stellt berechnete Properties für die UI bereit.
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Models;
+
+namespace MauiToDoApp.ViewModels;
+
+[QueryProperty(nameof(SelectedTask), "Item")]
+public partial class TaskDetailPageViewModel : ObservableObject
+{
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    private TodoItem _selectedTask;
+
+    // Wir berechnen den Status-Text hier im ViewModel statt in der View
+    public string StatusText => SelectedTask?.IsDone == true
+        ? "Status: Erledigt ✅"
+        : $"Status: Offen (Fällig am: {SelectedTask?.DueDate:dd.MM.yyyy HH:mm}) ⏳";
+
+    [RelayCommand]
+    private async Task Close() => await Shell.Current.GoToAsync("..");
+}
+```
+
+> [!NOTE]
+>Das [QueryProperty]-Attribut ist ein zentrales Werkzeug in MVVM-Frameworks (insbesondere in .NET MAUI), um Daten zwischen verschiedenen >Seiten (Pages) einer App zu übergeben.
+>Stell es dir wie eine "Paketübergabe" beim Navigieren vor: Wenn du von Seite A zu Seite B navigierst, kannst du ein Objekt oder eine ID >mitgeben, die Seite B dann automatisch entgegennimmt.
+
+> [!NOTE]
+> Dein StatusText nutzt SelectedTask direkt. Wenn sich SelectedTask ändert (durch das QueryProperty-Mapping), weiß die View nichts davon, > weil sich deine Eigenschaft StatusText nicht von selbst aktualisiert. Sie wird nur einmal beim Laden der Seite berechnet.
+> Die Lösung: Nutze [NotifyPropertyChangedFor]
+
+### TaskDetailPage.xaml
+
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiToDoApp.Pages.TaskDetailPage"
+             Title="Aufgaben-Details">
+
+    <VerticalStackLayout Padding="20" Spacing="20">
+        <Label Text="{Binding SelectedTask.Title}" FontSize="24" FontAttributes="Bold" TextColor="#512BD4" />
+
+        <Label Text="{Binding StatusText}" FontSize="14" FontAttributes="Italic" TextColor="Gray" />
+
+        <BoxView HeightRequest="1" BackgroundColor="LightGray" />
+
+        <Label Text="Beschreibung:" FontSize="14" FontAttributes="Bold" />
+        <Label Text="{Binding SelectedTask.Description, TargetNullValue='Keine Beschreibung vorhanden.'}" FontSize="16" />
+
+        <Button Text="Schließen" Command="{Binding CloseCommand}" Margin="0,20,0,0" />
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+### TaskDetailPage.xaml.cs
+
+```csharp
+using MauiToDoApp.ViewModels;
+
+namespace MauiToDoApp.Pages;
+
+public partial class TaskDetailPage : ContentPage
+{
+    public TaskDetailPage(TaskDetailPageViewModel vm)
+    {
+        InitializeComponent();
+        BindingContext = vm;
+    }
+}
+```
+
+### MauiProgram.cs
+
+```csharp
+builder.Services.AddTransient<TaskDetailPage>();
+builder.Services.AddTransient<TaskDetailPageViewModel>();
+```
+
+# Edit Task
+Wir wollen nun die Möglichkeit hinzufügen, dass bereits erstellte Task auch wieder verändert werden können. Dazu erstellen wir eine eigene EditTaskPage. Diese soll über einen Button auf der TaskDetailPage erreichbar sein
+

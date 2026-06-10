@@ -34,7 +34,7 @@ public partial class TaskDetailPage : ContentPage
             : SelectedTask.Description;
         StatusLabel.Text = SelectedTask.IsDone
             ? "Status: Erledigt ✅"
-            : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy")}) ⏳";
+            : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy HH:mm")}) ⏳";
 
     }
 
