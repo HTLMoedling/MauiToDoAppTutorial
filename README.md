@@ -1502,3 +1502,399 @@ public TaskDetailPageViewModel()
     });
 }
 ```
+
+# Kategorien für ToDo Items
+Im nächsten Schritt wollen wir Kategorien hinzufügen, sodass wir ToDo Items zu einer Kategorie hinzufügen können. Wir werden die Kategorien so implementieren, dass User auch selber Kategorien erstellen und bearbeiten können.
+
+## Das Datenmodell für Kategorien
+Wir benötigen eine Kategorie-Datenbank-Tabelle und eine 1-zu-n-Beziehung (ein TodoItem hat genau eine Category, eine Category hat viele TodoItems).
+
+Erstelle im Ordner Models eine neues File Categories.cs
+
+```csharp
+public enum CategoryColor
+{
+    Blue,
+    Green,
+    Red,
+    Yellow,
+    Orange,
+    Purple,
+    Gray
+}
+
+// Models/Category.cs
+public partial class Category : ObservableObject
+{
+    [PrimaryKey, AutoIncrement]
+    public int Id { get; set; }
+
+    [ObservableProperty]
+    private string _name;
+
+    [ObservableProperty]
+    private CategoryColor _colorType;
+}
+```
+
+Füge die CategoryId als Fremdschlüssel im ToDoItem hinzu
+
+```csharp
+public int CategoryId { get; set; } = 0;
+```
+
+## DatabseService Für Categories
+Nun müssen wir das DatabaseService so erweitern, dass wir Categories speicher, bearbeiten und löschen können.
+
+Erstelle in det Init() die Tabelle Categories, falls diese nicht existiert
+```csharp
+await _database.CreateTableAsync<Category>();
+```
+
+Nun implementiere alle benötigten Methoden
+
+```csharp
+public async Task<List<Category>> GetCategoriesAsync()
+{
+    await Init();
+    return await _database.Table<Category>().ToListAsync();
+}
+
+public async Task<int> SaveCategoryAsync(Category category)
+{
+    await Init();
+    if (category.Id != 0)
+        return await _database.UpdateAsync(category);
+    else
+        return await _database.InsertAsync(category);
+}
+
+public async Task<int> DeleteCategoryAsync(Category category)
+{
+    await Init();
+    return await _database.DeleteAsync(category);
+}
+```
+
+## Manage Categories
+Nun erstellen wir die Pages damit der User die Categories managen kann
+
+### Der Converter (Enum zu Color)
+Wir müssen zuerst einen Converter erstellen, damit die UI die Hex-Farben aus der Datenbank versteht.
+Erstelle einen neuen Ordner Common und darin ein neues File CategoryColorConverter.cs
+
+```csharp
+using MauiToDoApp.Models;
+using System.Globalization;
+
+namespace MauiToDoApp.Common;
+
+public class CategoryColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is CategoryColor colorType)
+        {
+            return colorType switch
+            {
+                CategoryColor.Blue => Colors.DeepSkyBlue,
+                CategoryColor.Green => Colors.LimeGreen,
+                CategoryColor.Red => Colors.Tomato,
+                CategoryColor.Yellow => Colors.Gold,
+                CategoryColor.Orange => Colors.Orange,
+                CategoryColor.Purple => Colors.MediumPurple,
+                CategoryColor.Gray => Colors.SlateGray,
+                _ => Colors.Gray
+            };
+        }
+        return Colors.Transparent;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+```
+
+
+### ManageCategoryPageViewModel
+Wir erstellen ein neues ViewModel um Categories hinzuzufügen und zu bearbeiten
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Models;
+using MauiToDoApp.Services;
+
+namespace MauiToDoApp.ViewModels;
+
+[QueryProperty(nameof(Category), "Category")]
+public partial class ManageCategoryPageViewModel : BaseViewModel
+{
+    private readonly DatabaseService _dbService;
+
+    [ObservableProperty]
+    private Category _category = new();
+
+    // Stellt alle Enum-Werte für den Picker bereit
+    public List<CategoryColor> ColorTypes => Enum.GetValues(typeof(CategoryColor)).Cast<CategoryColor>().ToList();
+
+    public ManageCategoryPageViewModel(DatabaseService dbService)
+    {
+        _dbService = dbService;
+    }
+
+    [RelayCommand]
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(Category.Name)) return;
+
+        await _dbService.SaveCategoryAsync(Category);
+
+        await Shell.Current.GoToAsync("..");
+    }
+
+    [RelayCommand]
+    private async Task Delete()
+    {
+        if (Category.Id == 0) return;
+        await _dbService.DeleteCategoryAsync(Category);
+        await Shell.Current.GoToAsync("..");
+    }
+
+    [RelayCommand]
+    private async Task Cancel() => await Shell.Current.GoToAsync("..");
+}
+```
+
+### ManageCategoryPageViewModel
+Wir erstellen ein neues ViewModel zur Anzeige und Verwaltung der Categories.
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:converter="clr-namespace:MauiToDoApp.Common"
+             x:Class="MauiToDoApp.Pages.ManageCategoryPage"
+             Title="ManageCategoryPage">
+    <ContentPage.Resources>
+        <converter:CategoryColorConverter x:Key="ColorConverter" />
+    </ContentPage.Resources>
+
+    <VerticalStackLayout Padding="20" Spacing="15">
+
+        <Label Text="Name der Kategorie:" FontAttributes="Bold" />
+        <Entry Text="{Binding Category.Name}" Placeholder="z.B. Arbeit, Uni..." />
+
+        <Label Text="Farbe wählen:" FontAttributes="Bold" />
+        <Picker ItemsSource="{Binding ColorTypes}"
+                SelectedItem="{Binding Category.ColorType}" />
+
+        <Border StrokeShape="RoundRectangle 10" 
+                HeightRequest="40"
+                HorizontalOptions="Fill"
+                BackgroundColor="{Binding Category.ColorType, Converter={StaticResource ColorConverter}}" />
+
+        <Button Text="Speichern" 
+                Command="{Binding SaveCommand}" 
+                Margin="0,20,0,0" />
+
+        <Button Text="Löschen" 
+                Command="{Binding DeleteCommand}" 
+                BackgroundColor="Red"
+                IsVisible="{Binding Category.Id, Converter={StaticResource IntToBoolConverter}}" />
+        <Button Text="Abbrechen" 
+                Command="{Binding CancelCommand}" 
+                BackgroundColor="Gray" />
+
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+Injecte nun das ViewModel
+```xml
+using MauiToDoApp.ViewModels;
+
+namespace MauiToDoApp.Pages;
+
+public partial class ManageCategoryPage : ContentPage
+{
+	public ManageCategoryPage(ManageCategoryPageViewModel vm)
+	{
+		InitializeComponent();
+		BindingContext = vm;
+	}
+}
+```
+
+### CategoryListPageViewModel
+Nun erstellen wir das ViewModel um eine Liste von allen Categories anzuzeigen. Die Seite soll es dem Beutzer zusätzlich ermöglichen, 
+neue Kategorien hinzuzufügen, bzw Kategorien zu bearbeiten
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Models;
+using MauiToDoApp.Pages;
+using MauiToDoApp.Services;
+using System.Collections.ObjectModel;
+
+namespace MauiToDoApp.ViewModels;
+
+public partial class CategoryListPageViewModel : BaseViewModel
+{
+    private readonly DatabaseService _dbService;
+
+    public ObservableCollection<Category> Categories { get; } = new();
+
+    public CategoryListPageViewModel(DatabaseService dbService)
+    {
+        _dbService = dbService;
+        LoadCategories();
+    }
+
+    [RelayCommand]
+    private async Task LoadCategories()
+    {
+        var list = await _dbService.GetCategoriesAsync();
+        Categories.Clear();
+        foreach (var item in list) Categories.Add(item);
+    }
+
+    // Navigiert zur "leeren" Seite (Erstellen)
+    [RelayCommand]
+    private async Task AddNew() =>
+        await Shell.Current.GoToAsync(nameof(ManageCategoryPage));
+
+    // Navigiert mit Parameter zur Bearbeitungsseite
+    [RelayCommand]
+    private async Task EditCategory(Category category) =>
+        await Shell.Current.GoToAsync(nameof(ManageCategoryPage), new Dictionary<string, object>
+        {
+            { "Category", category }
+        });
+}
+```
+
+### CategoryListPage
+Nun erstellen wir die Page
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MauiToDoApp.ViewModels"
+             xmlns:converter="clr-namespace:MauiToDoApp.Common"
+             x:Class="MauiToDoApp.Pages.CategoryListPage"
+             Title="CategoryListPage">
+    <ContentPage.Resources>
+        <converter:CategoryColorConverter x:Key="ColorConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="*, Auto" Padding="15">
+        <CollectionView ItemsSource="{Binding Categories}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,5" Padding="15" StrokeShape="RoundRectangle 10">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:CategoryListPageViewModel}}, Path=EditCategoryCommand}" 
+                                CommandParameter="{Binding .}" />
+                        </Border.GestureRecognizers>
+
+                        <HorizontalStackLayout Spacing="15">
+                            <BoxView Color="{Binding ColorType, Converter={StaticResource ColorConverter}}" 
+                                     WidthRequest="20" HeightRequest="20" CornerRadius="10" />
+                            <Label Text="{Binding Name}" VerticalOptions="Center" FontAttributes="Bold" />
+                        </HorizontalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Button Grid.Row="1" Text="Neue Kategorie hinzufügen" 
+                Command="{Binding AddNewCommand}" 
+                Margin="0,10,0,0" />
+    </Grid>
+</ContentPage>
+```
+
+Injecte nun das ViewModel
+
+```xml
+using MauiToDoApp.ViewModels;
+
+namespace MauiToDoApp.Pages;
+
+public partial class CategoryListPage : ContentPage
+{
+	public CategoryListPage(CategoryListPageViewModel vm)
+	{
+		InitializeComponent();
+		BindingContext = vm;
+	}
+}
+```
+
+>[!NOTE]
+> Vergiss nicht die Routen, die Pages und das ViewModels zu registrieren
+
+
+### Neuer Tab
+Nun müssen wir nur noch in AppShell.xaml einen neuen Tab in der Tabbar hinzufügen, damit der Benutzer auch auf die Category Page kommt
+
+```xml
+<Tab Title="Manage" Icon="manage_icon.png">
+    <ShellContent 
+ContentTemplate="{DataTemplate pages:CategoryListPage}" 
+Route="CategoryListPage" />
+</Tab>
+```
+
+>[!WARNING]
+> Wie schon in einem früheren Teil bekommt die View nicht mit, dass bei Delete die Liste der Categories geändert wurde 
+> und daher von der View neu geladen werden muss.
+
+Erstelle nun eigenständig eine neue Message und zwinge das ViewModel dazu die Liste neu zu laden
+
+<details>
+<summary>Message</summary>
+
+```csharp
+namespace MauiToDoApp.Messages;
+
+public class CategoriesUpdatedMessage { }
+```
+
+</details>
+
+<details>
+<summary>ManageCategoryPageViewModel</summary>
+
+```csharp
+[RelayCommand]
+private async Task Delete()
+{
+    if (Category.Id == 0) return;
+    await _dbService.DeleteCategoryAsync(Category);
+    WeakReferenceMessenger.Default.Send(new CategoriesUpdatedMessage());
+    await Shell.Current.GoToAsync("..");
+}
+```
+</details>
+
+<details>
+<summary>CategoryListPageViewModel</summary>
+
+```csharp
+public CategoryListPageViewModel(DatabaseService dbService)
+{
+    _dbService = dbService;
+    LoadCategories();
+
+    WeakReferenceMessenger.Default.Register<CategoriesUpdatedMessage>(this, (r, m) =>
+    {
+        MainThread.BeginInvokeOnMainThread(async () => await LoadCategories());
+    });
+}
+```
+
+</details>
