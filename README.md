@@ -1257,3 +1257,248 @@ builder.Services.AddTransient<TaskDetailPageViewModel>();
 # Edit Task
 Wir wollen nun die Möglichkeit hinzufügen, dass bereits erstellte Task auch wieder verändert werden können. Dazu erstellen wir eine eigene EditTaskPage. Diese soll über einen Button auf der TaskDetailPage erreichbar sein
 
+## TaskEditPageViewModel
+
+Wir erstellen hierfür ein neues ViewModel
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Models;
+using MauiToDoApp.Services;
+
+namespace MauiToDoApp.ViewModels;
+
+[QueryProperty(nameof(SelectedTask), "Item")]
+public partial class EditTaskPageViewModel : BaseViewModel
+{
+    private readonly DatabaseService _dbService;
+
+    public EditTaskPageViewModel(DatabaseService dbService) => _dbService = dbService;
+
+    [ObservableProperty]
+    private TodoItem _selectedTask;
+
+    [RelayCommand]
+    private async Task Save()
+    {
+        await _dbService.SaveTaskAsync(SelectedTask);
+        await Shell.Current.GoToAsync(".."); // Zurück zur Detailseite
+    }
+
+    [RelayCommand]
+    private async Task Cancel() => await Shell.Current.GoToAsync("..");
+}
+
+```
+
+## EditTaskPage.xaml
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiToDoApp.Pages.EditTaskPage"
+             Title="EditTaskPage">
+    <VerticalStackLayout Padding="20" Spacing="15">
+        <Entry Text="{Binding SelectedTask.Title}" Placeholder="Titel der Aufgabe" />
+        <Editor Text="{Binding SelectedTask.Description}" Placeholder="Beschreibung" HeightRequest="100" />
+
+        <Label Text="Abgabedatum / Deadline:" FontAttributes="Bold" />
+        <DatePicker Date="{Binding SelectedTask.DueDate}" Format="dd.MM.yyyy" />
+        <Button Text="Speichern" Command="{Binding SaveCommand}" />
+        <Button Text="Abbrechen" Command="{Binding CancelCommand}" BackgroundColor="Gray" />
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+## Verbindung in der TaskDetailPage
+Wir ergänzen in der TaskDetailPage einen "Bearbeiten"-Button.
+
+```csharp
+[RelayCommand]
+private async Task NavigateToEdit() => 
+    await Shell.Current.GoToAsync(nameof(EditTaskPage), new Dictionary<string, object> { { "Item", SelectedTask } });
+```
+
+XAML Ergänzung (in TaskDetailPage.xaml):
+
+```xml
+<Button Text="Bearbeiten" Command="{Binding NavigateToEditCommand}" Margin="0,20,0,0" />
+```
+
+## View und ViewModel registrieren
+
+```csharp
+builder.Services.AddTransient<EditTaskPage>();
+builder.Services.AddTransient<EditTaskPageViewModel>();
+```
+
+## Route registrieren
+
+```csharp
+Routing.RegisterRoute(nameof(EditTaskPage), typeof(EditTaskPage));
+```
+
+# Uhrzeit hinzufügen
+Damit man bei einem Task nicht nur das Datum mit einer immer fixen Uhrzeit wählen kann, werden wir jetzt beim erstellen und beim bearbeiten eines Tasks die Uhrzeit auch hinzufügen.
+
+Wir fügen hierzu bei AddTaskPage und EditTaskPage einen Timepicker hinzu unf implementieren die Lokig im jeweiligen ViewModel
+
+## AddTaskPage.xaml
+
+```xml
+<Label Text="Uhrzeit:" FontAttributes="Bold" />
+    <TimePicker Time="{Binding DueTime}" />
+```
+
+## AddTaskPageViewModel.cs
+
+Du benötigst ein zusätzliches TimeSpan Property für den TimePicker, da dieser nicht direkt mit einem DateTime Objekt gebunden werden kann. 
+
+```csharp
+[ObservableProperty] 
+private TimeSpan _dueTime = DateTime.Now.TimeOfDay; 
+```
+
+Beim Speichern führen wir beides zusammen.
+
+```csharp
+[RelayCommand]
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(Title))
+        {
+            await Shell.Current.DisplayAlert("Hinweis", "Bitte Titel eingeben.", "OK");
+            return;
+        }
+
+        // Datum und Zeit kombinieren
+        DateTime finalDeadline = DueDate.Date + DueTime;
+
+        var newTask = new TodoItem
+        {
+            Title = Title,
+            Description = Description,
+            IsDone = false,
+            DueDate = finalDeadline // Hier das kombinierte Datum speichern
+        };
+
+        await _databaseService.SaveTaskAsync(newTask);
+
+        // Benachrichtigung zum kombinierten Zeitpunkt
+        await LocalNotificationCenter.Current.Show(new NotificationRequest
+        {
+            NotificationId = newTask.Id,
+            Title = "HTL Deadline Erinnerung! 📝",
+            Description = $"Die Abgabe für '{newTask.Title}' ist fällig!",
+            Schedule = new NotificationRequestSchedule { NotifyTime = finalDeadline }
+        });
+
+        await Shell.Current.GoToAsync("..");
+    }
+```
+
+## EditTaskPage
+Damit der TimePicker auf der EditTaskPage korrekt mit deinem SelectedTask (dem TodoItem) funktioniert, musst du beachten, dass der TimePicker ein TimeSpan-Objekt benötigt, dein SelectedTask.DueDate aber ein DateTime ist.
+
+Da SelectedTask ein komplexes Objekt ist, ist es im ViewModel am saubersten, wenn du die Zeit aus dem Datum extrahierst.
+
+´´´xml
+<Label Text="Uhrzeit:" FontAttributes="Bold" />
+<TimePicker Time="{Binding SelectedTime}" />
+```
+
+```csharp
+[QueryProperty(nameof(SelectedTask), "Item")]
+public partial class EditTaskPageViewModel : BaseViewModel
+{
+    private readonly DatabaseService _dbService;
+
+    public EditTaskPageViewModel(DatabaseService dbService) => _dbService = dbService;
+
+    [ObservableProperty]
+    private TodoItem _selectedTask;
+
+    [ObservableProperty]
+    private TimeSpan _selectedTime;
+
+    [RelayCommand]
+    private async Task Save()
+    {
+        // Kombiniere das Datum aus dem DatePicker mit der gewählten Zeit
+        SelectedTask.DueDate = SelectedTask.DueDate.Date + SelectedTime;
+
+        await _dbService.SaveTaskAsync(SelectedTask);
+        await Shell.Current.GoToAsync(".."); // Zurück zur Detailseite
+    }
+
+    [RelayCommand]
+    private async Task Cancel() => await Shell.Current.GoToAsync("..");
+}
+```
+
+> [!WARNING]
+> Die Uhrzeit wird zwar jetzt auf der Edit Page korrekt angezeigt und gespeichert, nur wenn wir dann wieder zur Details 
+> zurück wechseln, wird die Uhrzeit nicht korrekt angezeigt
+
+> [!NOTE]
+> Das ist ein klassisches Problem bei der Datenbindung in .NET MAUI. Das Problem ist, dass die DetailsPage (oder ihr ViewModel) nicht weiß, 
+> dass sich das Objekt im Hintergrund geändert hat, oder die DetailsPage beim Zurücknavigieren nicht neu geladen wurde.
+
+## WeakReferenceMessenger
+Da du das CommunityToolkit.Mvvm verwendest, hast du den WeakReferenceMessenger direkt an Bord. Damit kannst du die DetailsPage benachrichtigen, dass sich der Task geändert hat.
+
+### Message erstellen
+Erstelle einen neuen Ordner Messages und erstelle dort das File TaskUpdatedMessage.cs
+
+```csharp
+using CommunityToolkit.Mvvm.Messaging.Messages;
+using MauiToDoApp.Models;
+
+namespace MauiToDoApp.Messages;
+
+// Ein 'record' eignet sich perfekt als Nachrichtentyp
+public class TaskUpdatedMessage : ValueChangedMessage<TodoItem>
+{
+    public TaskUpdatedMessage(TodoItem value) : base(value)
+    {
+    }
+}
+```
+
+### EditTaskPageViewModel.cs
+Sende nun die Nachricht über das Update an den Messanger
+
+```csharp
+[RelayCommand]
+private async Task Save()
+{
+    // Kombiniere das Datum aus dem DatePicker mit der gewählten Zeit
+    SelectedTask.DueDate = SelectedTask.DueDate.Date + SelectedTime;
+
+    await _dbService.SaveTaskAsync(SelectedTask);
+
+    // Sende eine Nachricht, dass ein Task aktualisiert wurde
+    WeakReferenceMessenger.Default.Send(new TaskUpdatedMessage(SelectedTask));
+
+    await Shell.Current.GoToAsync(".."); // Zurück zur Detailseite
+}
+```
+
+### DetailsPageViewModel.cs
+Registrier nun im Konstruktor dieses ViewModel als Empfänger dieser Message. Dadurch wird bei einer Änderung der SelectedTask neu gesetzt und dadurch die View auch über die Änderung verständigt
+
+```csharp
+public TaskDetailPageViewModel()
+{
+    WeakReferenceMessenger.Default.Register<TaskUpdatedMessage>(this, (r, m) =>
+    {
+        // Aktualisiere dein lokales Task-Objekt
+        SelectedTask = m.Value;
+
+        // Da die Property nicht komplett neu gesetzt wird, muss NotifyPropertyChanged explizit aufgerufen werden
+        OnPropertyChanged(nameof(StatusText));
+    });
+}
+```
