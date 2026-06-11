@@ -1503,6 +1503,119 @@ public TaskDetailPageViewModel()
 }
 ```
 
+# Zusammenführen von AddTaskPage und EditTaskPage
+Diese beiden Pages und ihre ViewModels enthalten viel redundanten Code, daher werden wir diese beiden Pages zu einer (ManageTaskPage) 
+zusammenführen
+
+## ManageTaskPageViewModel.cs
+Erstelle das neu ViewModel
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using MauiToDoApp.Messages;
+using MauiToDoApp.Models;
+using MauiToDoApp.Services;
+
+[QueryProperty(nameof(TaskItem), "Item")]
+public partial class ManageTaskPageViewModel : ObservableObject
+{
+    private readonly DatabaseService _dbService;
+
+    [ObservableProperty]
+    private TodoItem _taskItem = new();
+
+    [ObservableProperty]
+    private TimeSpan _selectedTime = DateTime.Now.TimeOfDay;
+
+    public ManageTaskPageViewModel(DatabaseService dbService) => _dbService = dbService;
+
+    partial void OnTaskItemChanged(TodoItem value)
+    {
+        if (value != null)
+            SelectedTime = value.DueDate.TimeOfDay;
+    }
+
+    [RelayCommand]
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(TaskItem.Title)) return;
+
+        // Zeit und Datum zusammenführen
+        TaskItem.DueDate = TaskItem.DueDate.Date + SelectedTime;
+
+        await _dbService.SaveTaskAsync(TaskItem);
+
+        // Falls wir bearbeiten, informiere andere Seiten
+        if (TaskItem.Id != 0)
+            WeakReferenceMessenger.Default.Send(new TaskUpdatedMessage(TaskItem));
+
+        await Shell.Current.GoToAsync("..");
+    }
+
+    [RelayCommand]
+    private async Task Cancel() => await Shell.Current.GoToAsync("..");
+}
+```
+
+## ManageTaskPage.xaml
+Erstelle die View
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiToDoApp.Pages.ManageTaskPage"
+             Title="ManageTaskPage">
+    <VerticalStackLayout Padding="20" Spacing="15">
+        <Entry Text="{Binding TaskItem.Title}" Placeholder="Titel der Aufgabe" />
+        <Editor Text="{Binding TaskItem.Description}" Placeholder="Beschreibung" HeightRequest="100" />
+
+        <Label Text="Abgabedatum / Deadline:" FontAttributes="Bold" />
+        <DatePicker Date="{Binding TaskItem.DueDate}" Format="dd.MM.yyyy" />
+
+        <Label Text="Uhrzeit:" FontAttributes="Bold" />
+        <TimePicker Time="{Binding SelectedTime}" />
+
+        <Button Text="Speichern" Command="{Binding SaveCommand}" />
+        <Button Text="Abbrechen" Command="{Binding CancelCommand}" BackgroundColor="Gray" />
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+## GoToAsync Methoden aktualisieren
+
+TaskDetailPageViewModel.cs
+
+```csharp
+[RelayCommand]
+private async Task NavigateToEdit() =>
+await Shell.Current.GoToAsync(nameof(EditTaskPage), new Dictionary<string, object> { { "Item", SelectedTask } });
+```
+
+MainPageViewModel.cs
+```csharp
+[RelayCommand]
+private async Task GoToAddPage() => await Shell.Current.GoToAsync($"//{nameof(ManageTaskPage)}");
+```
+
+TaskDetailPageViewModel.cs
+```csharp
+[RelayCommand]
+private async Task NavigateToEdit() =>
+await Shell.Current.GoToAsync(nameof(ManageTaskPage), new Dictionary<string, object> { { "Item", SelectedTask } });
+```
+
+>[!NOTE]
+> Vergiss nicht die Route, die Page und das ViewModel zu registrieren
+
+## Löschen der AddTaskPage und EditTaskPage
+Sobald die App getestet wurde, können wir die nun unnötigen Pages (AddTaskPage.xaml, EditTaskPage.xaml) und 
+die ViewModels (AddTaskPageViewModel.cs und EditTaskPageViewModel.cs) löschen.
+
+Lösche auch alle anderen Verweise auf die Files.
+
 # Kategorien für ToDo Items
 Im nächsten Schritt wollen wir Kategorien hinzufügen, sodass wir ToDo Items zu einer Kategorie hinzufügen können. Wir werden die Kategorien so implementieren, dass User auch selber Kategorien erstellen und bearbeiten können.
 
@@ -1537,10 +1650,14 @@ public partial class Category : ObservableObject
 }
 ```
 
-Füge die CategoryId als Fremdschlüssel im ToDoItem hinzu
+Füge die CategoryId als Fremdschlüssel im ToDoItem hinzu.
+Damit dein TodoItem die Farbe halten kann, ohne dass sie in der SQLite-Datenbank gespeichert wird, nutzen wir das [Ignore] Attribut.
 
 ```csharp
 public int CategoryId { get; set; } = 0;
+
+[Ignore]
+public CategoryColor CategoryColor { get; set; } = CategoryColor.Gray;
 ```
 
 ## DatabseService Für Categories
@@ -1558,6 +1675,12 @@ public async Task<List<Category>> GetCategoriesAsync()
 {
     await Init();
     return await _database.Table<Category>().ToListAsync();
+}
+
+public async Task<Category?> GetCategoryByIdAsync(int id)
+{
+    await Init();
+    return await _database.Table<Category>().FirstOrDefaultAsync(c => c.Id == id);
 }
 
 public async Task<int> SaveCategoryAsync(Category category)
@@ -1685,13 +1808,16 @@ Wir erstellen ein neues ViewModel zur Anzeige und Verwaltung der Categories.
         <Entry Text="{Binding Category.Name}" Placeholder="z.B. Arbeit, Uni..." />
 
         <Label Text="Farbe wählen:" FontAttributes="Bold" />
-        <Picker ItemsSource="{Binding ColorTypes}"
-                SelectedItem="{Binding Category.ColorType}" />
-
-        <Border StrokeShape="RoundRectangle 10" 
+        <HorizontalStackLayout Spacing="10">
+            <Picker ItemsSource="{Binding ColorTypes}"
+                SelectedItem="{Binding Category.ColorType}"
+                WidthRequest="250" />
+            <Border StrokeShape="RoundRectangle 10" 
                 HeightRequest="40"
-                HorizontalOptions="Fill"
-                BackgroundColor="{Binding Category.ColorType, Converter={StaticResource ColorConverter}}" />
+                WidthRequest="40"
+                VerticalOptions="Center"
+                BackgroundColor="{Binding Category.ColorType, Converter={StaticResource ColorConverter}}" />        
+        </HorizontalStackLayout>
 
         <Button Text="Speichern" 
                 Command="{Binding SaveCommand}" 
@@ -1870,6 +1996,14 @@ public class CategoriesUpdatedMessage { }
 <summary>ManageCategoryPageViewModel</summary>
 
 ```csharp
+private async Task Save()
+{
+    if (string.IsNullOrWhiteSpace(Category.Name)) return;
+    await _dbService.SaveCategoryAsync(Category);
+    WeakReferenceMessenger.Default.Send(new CategoriesUpdatedMessage());
+    await Shell.Current.GoToAsync("..");
+}
+
 [RelayCommand]
 private async Task Delete()
 {
@@ -1898,3 +2032,228 @@ public CategoryListPageViewModel(DatabaseService dbService)
 ```
 
 </details>
+
+# Categories in die View integrieren
+Als nächstes müssen wir die Kategorien in die View integrieren, so dass man sie bei den ToDo Items sieht.
+
+## MainPage
+Als erstes passen wir die MainPage so an, dass die ToDoItems in der Lsite die Farbe der Kategorie anzeigen
+
+### MainPageViewModel.cs
+Hier müssen wir lediglich die LoadTaskAsync() Methode so anpassen, dass im Task auch die Kategorie hinzugefügt wird. Dies geschieht, da in unserer Datenbank nur die ID der Kategorie gespeichert wird und nicht die Farbe
+
+```csharp
+private async Task LoadTasksAsync()
+{
+    var items = await _dbService.GetTasksAsync();
+    var categories = await _dbService.GetCategoriesAsync();
+    Tasks.Clear();
+    foreach (var item in items)
+    {
+        var category = categories.FirstOrDefault(c => c.Id == item.CategoryId);
+        item.CategoryColor = category?.ColorType ?? CategoryColor.Gray;
+
+        Tasks.Add(item);
+    }
+}
+```
+
+### MainPage.xaml
+In der MainPage zeigen wir vor jedem ToDoItem eine kleine Box (BoxView) mit der Farbe der Kategorie an. 
+Dazu verwenden wir wieder den Converter um auf das Enum zu binden.
+
+```xml
+<ContentPage.Resources>
+    <converter:CategoryColorConverter x:Key="ColorConverter" />
+</ContentPage.Resources>
+
+...
+
+<HorizontalStackLayout Spacing="15" Padding="10">
+    <BoxView Color="{Binding CategoryColor, Converter={StaticResource ColorConverter}}" 
+            WidthRequest="10" CornerRadius="5" />
+    <CheckBox IsChecked="{Binding IsDone}"
+            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MainPageViewModel}}, Path=ToggleTaskStatusCommand}"
+            CommandParameter="{Binding .}" />
+    <Label Text="{Binding Title}" VerticalOptions="Center" FontSize="18" />
+</HorizontalStackLayout>
+
+...
+```
+
+## ManageTask
+Nun müssen wir die ManageTask Page so anpassen, dass beim Hinzufügen eines neuen ToDoItems die Kategorie ausgewählt werden kann, 
+bzw beim Ändern, die Kategorie geändert werden kann.
+
+### ManageTaskPageViewModel
+Wir müssen das ViewModel so anpassen, dass die Kategorie ausgewählt werden kann.
+
+Wir brauchen dafür 2 neue Properties. Eine für die Liste der verfügbaren Kategorien und die andere für die ausgewählte Kategorie
+```csharp
+public ObservableCollection<Category> Categories { get; } = new();
+
+[ObservableProperty]
+private Category? _selectedCategory;
+```
+
+Nun passen wir den Konstruktor an und implementieren eine Methode die alle verfügbaren Kategorien aus der Datenbank läd
+```csharp
+public ManageTaskPageViewModel(DatabaseService dbService)
+{
+    _dbService = dbService;
+    LoadCategories();
+}
+
+// NEU
+private async void LoadCategories()
+{
+    var list = await _dbService.GetCategoriesAsync();
+    Categories.Clear();
+    foreach (var cat in list)
+    {
+        Categories.Add(cat);
+    }
+
+    // Wenn wir bearbeiten, Kategorie anhand der ID setzen
+    if (TaskItem.CategoryId != 0)
+    {
+        SelectedCategory = Categories.FirstOrDefault(c => c.Id == TaskItem.CategoryId);
+    }
+}
+```
+
+Wir implementieren die Methode OnTaskItemChanged damit bei einer bereits ausgewählten Kategorie (ToDoItem bearbeiten) 
+gleich die Richtige Kategorie und Farbe angezeigt wird 
+
+```csharp
+partial void OnTaskItemChanged(TodoItem value)
+{
+    if (value != null)
+    {
+        SelectedTime = value.DueDate.TimeOfDay;
+        // Falls Categories schon geladen sind, direkt selektieren
+        if (Categories.Any())
+        {
+            SelectedCategory = Categories.FirstOrDefault(c => c.Id == value.CategoryId);
+        }
+    }
+}
+```
+
+Wir erweitern die Save() Methode, damit direkt nach dem Datum und Uhrzeit auch die Kategorie zugewiesen wird
+
+```csharp
+// Zeit und Datum zusammenführen
+TaskItem.DueDate = TaskItem.DueDate.Date + SelectedTime;
+// Kategorie zuweisen
+TaskItem.CategoryId = SelectedCategory?.Id ?? 0;
+```
+
+### ManageTaskPage
+Nun passen wir die View an, sodass die Kategorie und die Farbe angezeigt werden
+
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:converter="clr-namespace:MauiToDoApp.Common"
+             x:Class="MauiToDoApp.Pages.ManageTaskPage"
+             Title="ManageTaskPage">
+    <ContentPage.Resources>
+        <converter:CategoryColorConverter x:Key="ColorConverter" />
+    </ContentPage.Resources>
+    ...
+        <Label Text="Kategorie wählen:" FontAttributes="Bold" />
+
+        <HorizontalStackLayout Spacing="10">
+            <Picker ItemsSource="{Binding Categories}"
+            ItemDisplayBinding="{Binding Name}"
+            SelectedItem="{Binding SelectedCategory}"
+            WidthRequest="250" />
+
+            <Border StrokeShape="RoundRectangle 10" 
+            HeightRequest="40"
+            WidthRequest="40"
+            VerticalOptions="Center"
+            BackgroundColor="{Binding SelectedCategory.ColorType, Converter={StaticResource ColorConverter}}" />
+        </HorizontalStackLayout>
+    ...
+</ContentPage>
+```
+
+### MainPage
+Registriere nun im Konstruktor die Message TaskUpdatedMessage damit die Liste der tasks neu geladen und 
+die View bei der Änderung von Tasks benachrichtigt wird
+
+```csharp
+public MainPageViewModel(DatabaseService dbService)
+{
+    _dbService = dbService;
+    Title = "HTL Aufgaben";
+    LoadTasksAsync();
+
+    WeakReferenceMessenger.Default.Register<TaskUpdatedMessage>(this, (r, m) =>
+    {
+        // Aktualisiere die Task Liste
+        LoadTasksAsync();
+    });
+}
+````
+
+## TaskDetail
+Nun müssen wir nur noch die TaskDetailPage anpassen, damit auch dort die Kategorie und die Farbe angezeigt wird
+
+### TaskDetailPageViewModel
+Wir benötigen eine neue Property damit die View die Daten für die Kategorie bekommt
+
+```csharp
+[ObservableProperty]
+private Category _selectedCategory;
+```
+
+Jedes mal wenn sich der Task ändert, müssen wir die Kategorie neu aus der Datenbank laden. 
+
+```csharp
+partial void OnSelectedTaskChanged(TodoItem value)
+{
+    _ = RefreshCategoryAsync();
+}
+
+private async Task RefreshCategoryAsync()
+{
+    if (SelectedTask != null && SelectedTask.CategoryId != 0)
+        SelectedCategory = await _dbService.GetCategoryByIdAsync(SelectedTask.CategoryId);
+    else
+        SelectedCategory = null;
+}
+```
+
+Jetzt müssen wir den Konstruktor noch anpassen, sodass wir bei jeder Änderung des Tasks, auch die Kategorie neu laden
+
+```csharp
+public TaskDetailPageViewModel(DatabaseService dbService)
+{
+    _dbService = dbService;
+
+    WeakReferenceMessenger.Default.Register<TaskUpdatedMessage>(this, (r, m) =>
+    {
+        SelectedTask = m.Value;
+        OnPropertyChanged(nameof(StatusText));
+        RefreshCategoryAsync();
+    });
+}
+```
+
+### TaskDetailPage
+Hier fügen wir nur noch den Kategorie Namen und die Farbe hinzu
+
+```xml
+<Label Text="Kategorie:" FontAttributes="Bold" />
+<HorizontalStackLayout Spacing="10">
+    <Label Text="{Binding SelectedCategory.Name, TargetNullValue='Keine Kategorie vorhanden.'}" FontSize="16" WidthRequest="250" />
+    <Border StrokeShape="RoundRectangle 10" 
+        HeightRequest="40"
+        WidthRequest="40"
+        VerticalOptions="Center"
+        BackgroundColor="{Binding SelectedCategory.ColorType, Converter={StaticResource ColorConverter}}" />
+</HorizontalStackLayout>
+```
