@@ -1737,6 +1737,25 @@ public class CategoryColorConverter : IValueConverter
 }
 ```
 
+### Der Converter (Int zu Boolean)
+Wir erstellen eine weiteren Converter (IntToBoolConverter.cs) der eine Int Wert in einen Boolean Wert umwandelt.
+Er verwandelt den Int Wert 0 in FALSE und alle anderen in TRUE.
+Diesen verwenden wir nachher um die Visibility des Löschen Buttons zu setzten (Dieser soll nur Visible sein wenn eine Kategorie editiert wird
+
+```csharp
+using System.Globalization;
+
+namespace MauiToDoApp.Common;
+
+public class IntToBoolConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is int id && id != 0;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+```
 
 ### ManageCategoryPageViewModel
 Wir erstellen ein neues ViewModel um Categories hinzuzufügen und zu bearbeiten
@@ -1800,6 +1819,7 @@ Wir erstellen ein neues ViewModel zur Anzeige und Verwaltung der Categories.
              Title="ManageCategoryPage">
     <ContentPage.Resources>
         <converter:CategoryColorConverter x:Key="ColorConverter" />
+        <converter:IntToBoolConverter x:Key="IntToBoolConverter" />
     </ContentPage.Resources>
 
     <VerticalStackLayout Padding="20" Spacing="15">
@@ -2256,4 +2276,197 @@ Hier fügen wir nur noch den Kategorie Namen und die Farbe hinzu
         VerticalOptions="Center"
         BackgroundColor="{Binding SelectedCategory.ColorType, Converter={StaticResource ColorConverter}}" />
 </HorizontalStackLayout>
+```
+
+# Logging einbauen
+Für jede App ist es wichtig eine Logging Funktion zu integrieren.
+Für unsere App bauen wir nun ein eigenes Logging Service.
+Diese Loggt für uns Fehler mit und schreibt diese in ein File.
+Um bequem auf das File zugreifen zu können, erstellen wir zusätzlich eine eigene Page und verlinken diese in der Tabbar.
+
+## FileLogger
+Erstelle im Ordner Services eine neues File FileLogger.cs.
+Hier implementieren die Funktionalität um Logs in eine File zuschreiben, dieses File zu lesen und es auch wieder zu löschen.
+
+```csharp
+namespace MauiToDoApp.Services;
+
+public static class FileLogger
+{
+    private static readonly string _logPath = Path.Combine(
+        FileSystem.AppDataDirectory, "app_log.txt");
+
+    public static async Task LogAsync(string message, Exception? ex = null)
+    {
+        try
+        {
+            var entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
+            if (ex != null)
+                entry += $"\n  >> {ex.GetType().Name}: {ex.Message}" +
+                         $"\n  >> {ex.StackTrace}";
+
+            await File.AppendAllTextAsync(_logPath, entry + "\n\n");
+        }
+        catch { /* Logger darf nie crashen */ }
+    }
+
+    public static async Task<string> ReadLogsAsync()
+    {
+        if (!File.Exists(_logPath)) return "Keine Logs vorhanden.";
+        return await File.ReadAllTextAsync(_logPath);
+    }
+
+    public static void Clear()
+    {
+        if (File.Exists(_logPath)) File.Delete(_logPath);
+    }
+
+    public static string LogPath => _logPath;
+}
+```
+
+Ansich wäre damit die Funktionalität für den Logger fertig, allerdings wollen wir ja für unsere App eine eigene Page erstellen,
+in der wir uns die mitgeloggten Einträge anschauen können.
+
+## LogPageViewModel
+Nun erstellen wir ein ViewModel für unsere LogPage.
+Wir stellen der View den Inhalt des Log Files zur Verfügung, ermöglichen den Log zu teilen, bzw diesen auch wiedre zu löschen
+
+```csharp
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MauiToDoApp.Services;
+
+namespace MauiToDoApp.ViewModels;
+
+public partial class LogPageViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _logContent = "Lade...";
+
+    public string LogPath => FileLogger.LogPath;
+
+    public LogPageViewModel()
+    {
+        _ = LoadLogs();
+    }
+
+    [RelayCommand]
+    private async Task Refresh() => await LoadLogs();
+
+    [RelayCommand]
+    private void Clear()
+    {
+        FileLogger.Clear();
+        LogContent = "Logs gelöscht.";
+    }
+
+    [RelayCommand]
+    private async Task Share()
+    {
+        await Microsoft.Maui.ApplicationModel.DataTransfer.Share.RequestAsync(
+            new ShareFileRequest
+            {
+                Title = "App Log",
+                File = new ShareFile(FileLogger.LogPath)
+            });
+    }
+
+    private async Task LoadLogs()
+    {
+        LogContent = await FileLogger.ReadLogsAsync();
+    }
+}
+```
+
+## LogPage
+Nun erstellen wir fürs Logging eine neue Page
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MauiToDoApp.ViewModels"
+             x:Class="MauiToDoApp.Pages.LogPage"
+             Title="Debug Logs">
+
+    <ContentPage.BindingContext>
+        <vm:LogPageViewModel />
+    </ContentPage.BindingContext>
+
+    <Grid RowDefinitions="Auto, *, Auto" Padding="10" RowSpacing="10">
+
+        <HorizontalStackLayout Grid.Row="0" Spacing="10">
+            <Button Text="Aktualisieren" Command="{Binding RefreshCommand}" />
+            <Button Text="Löschen" Command="{Binding ClearCommand}" BackgroundColor="Red" />
+            <Button Text="Teilen" Command="{Binding ShareCommand}" />
+        </HorizontalStackLayout>
+
+        <ScrollView Grid.Row="1">
+            <Label Text="{Binding LogContent}"
+                   FontFamily="Monospace"
+                   FontSize="11"
+                   Padding="5" />
+        </ScrollView>
+
+        <Label Grid.Row="2"
+               Text="{Binding LogPath}"
+               FontSize="10"
+               TextColor="Gray" />
+    </Grid>
+</ContentPage>
+```
+
+Vergiss nicht das ViewModel zu injecten
+
+```csharp
+public LogPage(LogPageViewModel vm)
+{
+	InitializeComponent();
+	BindingContext = vm;
+}
+```
+
+## Global Exception Handler
+Der Global Exception Handler fängt alle Exceptions ab, die nirgendwo sonst gecatcht wurden und normalerweise die App zum Absturz bringen würden.
+
+In App.xaml.cs
+```csharp
+public App()
+{
+    InitializeComponent();
+
+    AppDomain.CurrentDomain.UnhandledException += async (s, e) =>
+        await FileLogger.LogAsync("UnhandledException", e.ExceptionObject as Exception);
+
+    TaskScheduler.UnobservedTaskException += async (s, e) =>
+    {
+        await FileLogger.LogAsync("UnobservedTaskException", e.Exception);
+        e.SetObserved();
+    };
+}
+```
+
+## Log Tab hinzufügen
+Füge nun in AppShell.xaml einen Tab hinzu
+
+```xml
+<Tab Title="Logs" Icon="bug.png">
+    <ShellContent ContentTemplate="{DataTemplate pages:DebugLogPage}" />
+</Tab>
+```
+
+## LogPage Route registrieren
+Registriere nun in AppShell.xaml.cs die Route zur LogPage
+
+```csharp
+Routing.RegisterRoute(nameof(LogPage), typeof(LogPage));
+```
+
+## DI registrieren
+Nun registrieren wir vie Page und das ViewModel für DI
+
+```csharp
+builder.Services.AddTransient<LogPage>();
+builder.Services.AddTransient<LogPageViewModel>();
 ```
