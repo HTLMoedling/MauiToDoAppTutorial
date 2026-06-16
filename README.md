@@ -795,6 +795,42 @@ StatusLabel.Text = SelectedTask.IsDone
             : $"Status: Offen (Fällig am: {SelectedTask.DueDate.ToString("dd.MM.yyyy")}) ⏳";
 ```
 
+## Berechtigung für Push-Notification bei Start der App
+Wir wollen dass beim aler esrsten Start der App, der Neutzer gefragt wird, ob er Push-Notifications zulassen will.
+Hier für müssen wir die MainPage.xaml.cs Datei anpassen und diese Funktionalität einbauen.
+Füge folgende 2 Methoden hinzu:
+
+```csharp
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+
+        await AskNotificationPermissionOnceAsync();
+    }
+
+    private async Task AskNotificationPermissionOnceAsync()
+    {
+        if (_notificationPermissionChecked)
+            return;
+
+        _notificationPermissionChecked = true;
+
+        bool alreadyAsked = Preferences.Default.Get("AskedNotificationPermission", false);
+
+        if (alreadyAsked)
+            return;
+
+        var status = await Permissions.CheckStatusAsync<Permissions.PostNotifications>();
+
+        if (status != PermissionStatus.Granted)
+        {
+            status = await Permissions.RequestAsync<Permissions.PostNotifications>();
+        }
+
+        Preferences.Default.Set("AskedNotificationPermission", true);
+    }
+```
+
 # Verbessern der Navigation
 Wenn man auf der MainPage.xaml auf Aufgabe hinzufügen klickt, wird nicht in der Tab (AddTaskPage.xaml gewechsel (ersichtlich daran, dass der Tab nicht selektiert wird) sonder die neue Seite wird auf die MainPage gelegt (Push-Navigation).
 
@@ -818,7 +854,7 @@ await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
 ```
 
 
-# Validierung dess User Inputs
+# Validierung des User Inputs
 Für eine optimale Usability der App sollte jeder Input direkt vaidiert werden und Fehler dem User unmittelbar bei der Eingabe in der UI angezeigt werden.
 
 Um die Validierung komplett vom Code-Behind zu trennen, verwenden wir Behaviors. Ein Behavior ist eine Klasse, die sich an ein UI-Element (wie ein Entry) "anhängt" und dessen Verhalten überwacht – völlig unabhängig von deiner Page-Logik.
@@ -857,7 +893,7 @@ public class EntryValidationBehavior : Behavior<Entry>
 ## Die XAML-Einbindung (Keine Logik im Code-Behind)
 Jetzt müssen wir in der AddTaskPage.xaml nur noch das Behavior zuweisen. Der Code-Behind bleibt für diesen Teil komplett leer.
 
-```csharp
+```xml
 <Entry x:Name="TitleEntry" Placeholder="Titel der Aufgabe">
     <Entry.Behaviors>
         <local:EntryValidationBehavior />
@@ -926,7 +962,7 @@ public ObservableCollection<TodoItem> Tasks { get; } = new();
 
 Erstelle nun den Konstruktor und die Methode LoadTasksAsync()
 
-```cahrp
+```csharp
 public MainPageViewModel(DatabaseService dbService)
 {
     _dbService = dbService;
@@ -968,7 +1004,7 @@ private async Task GoToAddPage() => await Shell.Current.GoToAsync($"//{nameof(Ad
 In der Welt von MVVM ist das RelayCommand (im Community Toolkit [RelayCommand] oder die Klasse RelayCommand) das Gegenstück zu ObservableProperty. Während ObservableProperty Datenflüsse von deinem ViewModel zur View (UI) steuert, steuert das RelayCommand Benutzerinteraktionen von der View zurück zum ViewModel.
 
 > [!NOTE]
-> Um das Coomand zu deaktivieren/aktivieren kann dies mittels CanExecute realisiert werden.
+> Um das Command zu deaktivieren/aktivieren kann dies mittels CanExecute realisiert werden.
 
 >```csharp
 >[RelayCommand(CanExecute = nameof(CanSave))]
