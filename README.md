@@ -1146,10 +1146,6 @@ public partial class AddTaskPageViewModel : ObservableObject
         Title = string.Empty;
         Description = string.Empty;
 
-                // Felder zurücksetzen
-        Title = string.Empty;
-        Description = string.Empty;
-
         await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
     }
 
@@ -1293,7 +1289,7 @@ builder.Services.AddTransient<TaskDetailPageViewModel>();
 # Edit Task
 Wir wollen nun die Möglichkeit hinzufügen, dass bereits erstellte Task auch wieder verändert werden können. Dazu erstellen wir eine eigene EditTaskPage. Diese soll über einen Button auf der TaskDetailPage erreichbar sein
 
-## TaskEditPageViewModel
+## EditTaskPageViewModel
 
 Wir erstellen hierfür ein neues ViewModel
 
@@ -1440,7 +1436,7 @@ Damit der TimePicker auf der EditTaskPage korrekt mit deinem SelectedTask (dem T
 
 Da SelectedTask ein komplexes Objekt ist, ist es im ViewModel am saubersten, wenn du die Zeit aus dem Datum extrahierst.
 
-´´´xml
+```xml
 <Label Text="Uhrzeit:" FontAttributes="Bold" />
 <TimePicker Time="{Binding SelectedTime}" />
 ```
