@@ -2824,3 +2824,33 @@ Hier einzelne Beispiele aus MainPage.xaml
 ```
 
 Style in der Art alle Pages und entferne etwaige inline Styles die wir jetzt nichtmehr brauchen.
+
+# Routing
+Das Routing in .NET MAUI Shell kann bei komplexen Apps verwirrend sein, da es zwei verschiedene "Ebenen" der Navigation gibt. 
+
+## Die zwei Navigations-Welten
+Der Shell-Stack (Hierarchisch): Wenn du GoToAsync("DetailSeite") machst, "stapelst" du Seiten übereinander. Der ..-Befehl funktioniert hier perfekt, um eine Ebene zurückzugehen.
+
+Die Tab-Ebene (Root): Wenn du dich in einem Tab (z.B. Aufgabenliste) befindest, ist das die Basis deiner App. Ein .. "nach oben" führt ins Leere, da du bereits am Boden des Stacks bist.
+
+## Die "Safe-Navigation"
+Um aus jedem Kontext (egal ob du von einem Log-Tab, einer Detailseite oder sonst wo kommst) sicher auf die Startseite zu gelangen, ist die Absolute Route mit dem //-Operator die einzig verlässliche Lösung.
+
+Hier ein Beispiel für den Cancel Button
+
+```csharp
+private async Task Cancel()
+{
+    // 1. Prüfe, ob wir im aktuellen Tab tiefer in einer Hierarchie sind
+    // Wenn der Stack größer als 1 ist, gab es eine Push-Navigation
+    if (Shell.Current.Navigation.NavigationStack.Count > 1)
+    {
+        await Shell.Current.GoToAsync("..");
+    }
+    // 2. Ansonsten springe hart zurück zum Root-Tab (MainPage)
+    else
+    {
+        await Shell.Current.GoToAsync("//MainPage");
+    }
+}
+```
