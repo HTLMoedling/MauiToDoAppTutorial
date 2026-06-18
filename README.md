@@ -1618,14 +1618,6 @@ Erstelle die View
 
 ## GoToAsync Methoden aktualisieren
 
-TaskDetailPageViewModel.cs
-
-```csharp
-[RelayCommand]
-private async Task NavigateToEdit() =>
-await Shell.Current.GoToAsync(nameof(EditTaskPage), new Dictionary<string, object> { { "Item", SelectedTask } });
-```
-
 MainPageViewModel.cs
 ```csharp
 [RelayCommand]
@@ -2501,4 +2493,223 @@ Nun registrieren wir vie Page und das ViewModel für DI
 ```csharp
 builder.Services.AddTransient<LogPage>();
 builder.Services.AddTransient<LogPageViewModel>();
+```
+
+# Suche, Filter und Sortierung hinzufügen
+Wir wollen nun die Usability der App verbessern und die Suche, Sortierung und Filterung der ToDo Items hinzufügen
+
+## Suche
+Um die Suche zu integrieren brauchen wir im xaml File eien Searchbar und im ViewModel eine Funktion die 
+den Titel und die Beschreibung nach dem gesuchten Wort filtert
+
+### MainPage.xaml
+Wir passen als erstes das Grid an und fügen 2 weitere Rows hinzu.
+
+>[!NOTE]
+> Vergiss nicht Grid.Row für alle Elemente anzupassen, da wir am Anfang der Seite eine Row hinzufügen
+
+```xml
+<Grid RowDefinitions="Auto, *, Auto" Padding="20">
+```
+
+Füge nun die Searchbar hinzu
+
+```xml
+<SearchBar Grid.Row="0" Text="{Binding SearchText}" Placeholder="Titel oder Beschreibung suchen..." />
+```
+
+### MainPageViewModel.cs
+Damit die Liste durchsucht werden kann brauchen wir eine neue ObservableProperty auf die die Searchbar binden kann.
+Wir fügen zusätzlich einen Callback hinzu, der bei jeder Änderung des Textes in der Searchbar aufgerufen wird.
+Zuletzt brauchen wir eine Methode, die unsere ToDo Items filtert
+
+Um die neuen Funktionalität optimal zu integrieren, müssen wir unser ViewModel umbauen.
+
+Füge eine neue Liste hinzu, die die Rohdaten der ToDo Items enthält
+
+```csharp
+private List<TodoItem> _allItems = new();
+```
+
+Füge eine ObservableProperty hinzu auf die der Searchtext der View binden kann
+```csharp
+[ObservableProperty] string _searchText;
+```
+
+Implementier eine Methode die unsere Suche und im Anschluss die Filterung durchführt
+
+```csharp
+private void ApplyFiltersAndSort()
+{
+    var filtered = _allItems.AsEnumerable();
+
+    // 1. Suche über Title und Description
+    if (!string.IsNullOrWhiteSpace(SearchText))
+        filtered = filtered.Where(i =>
+            i.Title.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+            i.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            
+    Tasks.Clear();
+    foreach (var item in filtered) Tasks.Add(item);
+}
+```
+
+Passe nun die LoadTasksAsync() Methode so an, dass erst die Rohdaten geladen und dann die Suche und Filter auf die Daten angewendet werden.
+
+```csharp
+private async Task LoadTasksAsync()
+{
+    var items = await _dbService.GetTasksAsync();
+    var categories = await _dbService.GetCategoriesAsync();
+            
+    // Rohdaten vorbereiten
+    _allItems = items.Select(item => {
+        var cat = categories.FirstOrDefault(c => c.Id == item.CategoryId);
+        item.CategoryColor = cat?.ColorType ?? CategoryColor.Gray;
+        return item;
+    }).ToList();
+
+    ApplyFiltersAndSort();
+}
+```
+
+Füge nun die Callback Methode hinzu, die ausgeführt wird, sobald sich der Text in der Searchbar ändert.
+
+```csharp
+partial void OnSearchTextChanged(string value) => ApplyFiltersAndSort();
+```
+
+>[!NOTE]
+> Die Methode OnSearchTextChanged wird automatisch durch die [ObservableProperty] string _searchText generiert.
+
+## Filtern und sortieren
+Im nächsten Schritt fürgen wir den Filter hinzu, sodass nach verfügbaren Kategorien gefiltert werden kann.
+
+### MainPage.xaml
+Erweitere die MainPage umd eine weitere Row um den Filter anzuzeigen.
+
+>[!NOTE]
+> Vergiss nicht Grid.Row für alle Elemente anzupassen, da wir am Anfang der Seite eine Row hinzufügen
+
+```xml
+<Grid RowDefinitions="Auto, Auto, *, Auto" Padding="20">
+```
+
+Füge nun nach der Searchbar ein HorizontalStackLayout mit dem Filter hinzu
+
+```xml
+<HorizontalStackLayout Grid.Row="1" Spacing="10" Margin="0,10">
+    <Picker Title="Kategorie" SelectedItem="{Binding SelectedCategory}" 
+        ItemsSource="{Binding AvailableCategories}" WidthRequest="150" />            
+</HorizontalStackLayout>
+```
+
+### MainPageViewModel.cs
+Für den Filter brauchen wir eine ObservableCollection mit allen verfügbaren Kategorien.
+
+```csharp
+public ObservableCollection<Category> AvailableCategories { get; } = new();
+```
+
+Füge nun eine ObservableProperty hinzu, die auf selektierte Kategorie aus dem Dropdown bindet.
+
+```csharp
+[ObservableProperty] Category _selectedCategory;
+```
+
+Erweitere nun die LoadTaskAsync Methode, um die Kategorien für den Filter vorzubereiten
+
+```csharp
+private async Task LoadTasksAsync()
+{
+    var items = await _dbService.GetTasksAsync();
+    var categories = await _dbService.GetCategoriesAsync();
+
+    // Kategorien für den Filter vorbereiten
+    AvailableCategories.Clear();
+    AvailableCategories.Add(new Category { Id = 0, Name = "Alle" }); 
+    foreach (var cat in categories) AvailableCategories.Add(cat);
+
+    // Rohdaten vorbereiten
+    _allItems = items.Select(item => {
+        ...
+    }
+}
+```
+
+Jetzt passen wir die Methode ApplyFilterAndSort() noch so an, dass nach Kategorien gefiltert wird.
+Implentiere den Teil direkt nach der Suche
+
+```csharp
+// 2. Filter nach Kategorie (Jetzt über das Objekt!)
+if (SelectedCategory != null && SelectedCategory.Id != 0)
+{
+    filtered = filtered.Where(i => i.CategoryId == SelectedCategory.Id);
+}
+```
+
+Füge nun die Callback Methode hinzu, die ausgeführt wird, sobald sich die ausgewählte Kategorie ändert.
+```csharp
+partial void OnSelectedCategoryChanged(Category value) => ApplyFiltersAndSort();
+```
+
+## Sortierung
+Zuletzt fügen wir noch die Sortierung hinzu. 
+Die Default Sortierung ist nach dem Titel. Zusatzlich soll noch nach Fälligkeitsdatum und Kategorie sortiert werden können.
+
+### MainPage.xaml
+Füge nach dem Dropdown (Picker) für die Kategorien, das Dropdown für die Sortierung hinzu
+
+```xml
+<Picker Title="Sortieren nach" 
+    ItemsSource="{Binding SortOptions}" 
+    SelectedItem="{Binding SelectedSortOption}"
+    ItemDisplayBinding="{Binding DisplayName}" 
+    WidthRequest="150" />
+```
+
+### MainPageViewModel.cs
+Im ViewModel definieren wir eine einfache Hilfsklasse (oder ein Record) die die Art der Sortierung enthält
+Diese muss außerhalb der Klasse definiert werden.
+
+```csharp
+public record SortOption(string DisplayName, string Key);
+```
+
+In der Klasse initialisieren wir die Collection mit den Sortieroptionen für das Dropdown.
+Wir definieren zusätzlich eine ObservableProperty, die die ausgewäjlte sortierung enthält.
+
+```csharp
+public ObservableCollection<SortOption> SortOptions { get; } = new()
+{
+    new("Titel", "Title"),
+    new("Fälligkeitsdatum", "DueDate")
+};
+
+// Das aktuell ausgewählte Sortierung
+[ObservableProperty] 
+private SortOption _selectedSortOption;
+```
+
+Im Konstruktor soll standarmäßig die erste Sortierung ausgewählt werden.
+
+```csharp
+// Standardmäßig die erste Option wählen
+SelectedSortOption = SortOptions.First();
+```
+
+In der Methide ApplyFiltersAndSort fügen wir nach der Filterung, die Sortierung hinzu
+
+```csharp
+// 3. Sortierung basierend auf dem Key
+filtered = SelectedSortOption.Key switch
+{
+    "DueDate" => filtered.OrderBy(i => i.DueDate),
+    _ => filtered.OrderBy(i => i.Title)
+};
+```
+
+Füge nun die Callback Methode hinzu, die ausgeführt wird, sobald sich die ausgewählte Sortierung ändert.
+```csharp
+partial void OnSelectedSortOptionChanged(SortOption value) => ApplyFiltersAndSort();
 ```
