@@ -2713,3 +2713,114 @@ Füge nun die Callback Methode hinzu, die ausgeführt wird, sobald sich die ausg
 ```csharp
 partial void OnSelectedSortOptionChanged(SortOption value) => ApplyFiltersAndSort();
 ```
+
+# Design der Seite
+Im nächsten Schritt wollen wir die App etwas schöner gestalten.
+Dafür definieren wir für alle Controls eigene Styles in einem RessourceDictionary und wende diese dann auf die Controls an.
+
+## ResourceDictionary
+Kopiere folgende Styles in das Styles.xaml ResourceDictionary (Resources->Styles->Styles.xaml)
+
+```xml
+<Color x:Key="PrimaryBrand">#16417C</Color>
+<Color x:Key="CardBackground">#FFFFFF</Color>
+<Color x:Key="AppBackground">#FDF9F3</Color>
+<Color x:Key="TextSecondary">#636E72</Color>
+<Color x:Key="TextPrimary">#FFFFFF</Color>
+<Color x:Key="ShellInactive">#B2BEC3</Color>
+<Color x:Key="ShellText">#2D3436</Color>
+
+<Style x:Key="DolyShellStyle" TargetType="Shell">
+    <Setter Property="Shell.BackgroundColor" Value="{StaticResource PrimaryBrand}" />
+    <Setter Property="Shell.TabBarBackgroundColor" Value="{StaticResource PrimaryBrand}" />
+    <Setter Property="Shell.TabBarForegroundColor" Value="{StaticResource TextPrimary}" />
+    <Setter Property="Shell.TabBarUnselectedColor" Value="{StaticResource ShellInactive}" />
+    <Setter Property="Shell.TitleColor" Value="{StaticResource ShellText}" />
+</Style>
+
+<Style x:Key="DolyButtonStyle" TargetType="Button">
+    <Setter Property="CornerRadius" Value="25" />
+    <Setter Property="HeightRequest" Value="50" />
+    <Setter Property="BackgroundColor" Value="{StaticResource PrimaryBrand}" />
+    <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+    <Setter Property="FontAttributes" Value="Bold" />
+    <Setter Property="FontSize" Value="16" />
+</Style>
+
+<Style x:Key="DolyCardStyle" TargetType="Border">
+    <Setter Property="StrokeShape" Value="RoundRectangle 15" />
+    <Setter Property="BackgroundColor" Value="{StaticResource CardBackground}" />
+    <Setter Property="Stroke" Value="Transparent" />
+    <Setter Property="Padding" Value="15" />
+    <Setter Property="Margin" Value="0,5" />
+    <Setter Property="Shadow">
+        <Shadow Brush="Black" Radius="5" Opacity="0.1" />
+    </Setter>
+</Style>
+
+<Style x:Key="DolyLabelStyle" TargetType="Label">
+    <Setter Property="TextColor" Value="{StaticResource TextSecondary}" />
+    <Setter Property="FontSize" Value="16" />
+</Style>
+
+<Style x:Key="DolyBoxViewStyle" TargetType="BoxView">
+    <Setter Property="WidthRequest" Value="8" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="VerticalOptions" Value="Fill" />
+</Style>
+
+<Style x:Key="DolyCheckBoxStyle" TargetType="CheckBox">
+    <Setter Property="Color" Value="{StaticResource PrimaryBrand}" />
+</Style>
+
+<Style x:Key="DolyCollectionStyle" TargetType="CollectionView">
+    <Setter Property="Margin" Value="0,10" />
+</Style>
+
+<Style x:Key="DolyEntryStyle" TargetType="Entry">
+    <Setter Property="BackgroundColor" Value="White" />
+    <Setter Property="TextColor" Value="{StaticResource PrimaryBrand}" />
+    <Setter Property="HeightRequest" Value="50" />
+    <Setter Property="Margin" Value="0,5" />
+</Style>
+
+<Style x:Key="DolyPickerStyle" TargetType="Picker">
+    <Setter Property="BackgroundColor" Value="White" />
+    <Setter Property="TextColor" Value="{StaticResource PrimaryBrand}" />
+    <Setter Property="HeightRequest" Value="70" />
+    <Setter Property="TitleColor" Value="Gray" />
+</Style>
+```
+
+## Styling der Pages
+Wir wenden jetzt auf alle Control die im Dictionary einen Style haben, diesen Style an
+
+Hier einzelne Beispiele aus MainPage.xaml
+
+```diff
+<Entry Grid.Row="0" 
++      Style="{StaticResource DolyEntryStyle}"
+-      FontSize="20" 
+-      FontAttributes="Bold" 
+-      HorizontalTextAlignment="Center" 
+-      TextColor="{AppThemeBinding Light=#512BD4, Dark=#A294F9}"
+       Text="{Binding SearchText}" 
+       Placeholder="Titel oder Beschreibung suchen..." />
+...
+<Picker Title="Kategorie" 
++   Style="{StaticResource DolyPickerStyle}"
+    ItemsSource="{Binding AvailableCategories}" 
+    SelectedItem="{Binding SelectedCategory}"
+    ItemDisplayBinding="{Binding Name}" 
+    WidthRequest="150" />
+...
+<CollectionView Grid.Row="2"
++               Style="{StaticResource DolyCollectionStyle}"
+                ItemsSource="{Binding Tasks}"
+                SelectionMode="Single"
+                SelectionChangedCommand="{Binding NavigateToDetailsCommand}"
+                SelectionChangedCommandParameter="{Binding Source={RelativeSource Self}, Path=SelectedItem}">
+...
+```
+
+Style in der Art alle Pages und entferne etwaige inline Styles die wir jetzt nichtmehr brauchen.
